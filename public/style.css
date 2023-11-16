@@ -1,0 +1,20 @@
+#heatmap-container {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+#heatmap {
+  height: 600px; /* Adjust height as necessary */
+  width: 100%;
+}
+
+/* Example of setting the background color for the 'oversold' and 'overbought' regions */
+.chart-background-oversold {
+  background-color: rgba(0, 255, 0, 0.2); /* Green for oversold */
+}
+
+.chart-background-overbought {
+  background-color: rgba(255, 0, 0, 0.2); /* Red for overbought */
+}
+
+

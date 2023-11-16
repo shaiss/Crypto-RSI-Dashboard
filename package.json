@@ -1,0 +1,14 @@
+{
+  "name": "heatmap-mvp",
+  "version": "1.0.0",
+  "description": "A simple MVP for a crypto RSI heatmap",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "axios": "^0.21.1",
+    "config.json": "^0.0.4",
+    "express": "^4.17.1"
+  }
+}

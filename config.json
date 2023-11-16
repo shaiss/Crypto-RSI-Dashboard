@@ -1,0 +1,4 @@
+{
+  "tokens": ["BTC", "ETH"],
+  "updateInterval": 20000
+}
