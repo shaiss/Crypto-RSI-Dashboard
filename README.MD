@@ -1,4 +1,4 @@
-# Project Name: Crypto Heatmap Dashboard
+# Crypto Heatmap Dashboard
 
 ## Description
 
