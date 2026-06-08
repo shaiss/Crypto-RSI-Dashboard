@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Phoenix Wheels: Launch Quest</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- CRT scanline overlay -->
+  <div id="crt"></div>
+
+  <!-- top HUD -->
+  <header id="hud" class="hidden">
+    <div class="hud-left">
+      <span class="hud-logo">🔥 PHOENIX WHEELS</span>
+    </div>
+    <div class="hud-right">
+      <span class="hud-stat">LVL <b id="hud-level">1</b></span>
+      <span class="hud-stat">XP <b id="hud-xp">0</b></span>
+      <span class="hud-stat hud-badges" id="hud-badges"></span>
+      <button class="pixel-btn small" id="btn-mute" title="Sound on/off">🔊</button>
+    </div>
+  </header>
+
+  <main id="screen"></main>
+
+  <footer id="foot" class="hidden">
+    <button class="pixel-btn small" data-nav="map">🗺️ MAP</button>
+    <button class="pixel-btn small" data-nav="roadmap">📜 ROADMAP</button>
+    <button class="pixel-btn small" data-nav="export">💾 SAVE/EXPORT</button>
+    <button class="pixel-btn small" data-nav="help">❓ HELP</button>
+  </footer>
+
+  <script src="quests.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>

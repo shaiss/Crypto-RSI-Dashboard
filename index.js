@@ -10,6 +10,11 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// Phoenix Wheels: Launch Quest — 8-bit business-launch game
+app.get('/game', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'game', 'index.html'));
+});
+
 // New endpoint to provide the heatmap data to the frontend
 app.get('/api/heatmap-data', async (req, res) => {
   try {
