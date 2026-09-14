@@ -1,76 +1,95 @@
-# Crypto Heatmap Dashboard
+# Crypto RSI Dashboard
 
-## Description
+DeFi decision tool for inspecting token RSI across supported timeframes. Slice A exposes a server-side decision-session API backed by [TAAPI](https://taapi.io/).
 
-Crypto Heatmap Dashboard is an interactive web application designed to visualize cryptocurrency market data in real-time. It leverages a bubble chart to display the Relative Strength Index (RSI) of various cryptocurrencies, providing an intuitive and dynamic way to monitor market trends.
+The legacy heatmap bubble-chart UI remains in `public/` but is not the product surface. New work should target `/api/session`.
 
-## Features
+## Prerequisites
 
-- **Real-Time Data Visualization**: Display the RSI of different cryptocurrencies in a bubble chart format.
-- **Automatic Data Refresh**: The chart updates every 20 seconds to reflect the most recent market data.
-- **Interactive UI**: Easy to navigate interface with clear visualization.
-- **Customizable Chart**: Bubble chart with customizable options for better data representation.
+- Node.js 18+ (for built-in test runner and `fetch`)
+- npm
 
-## Getting Started
+## Installation
 
-### Prerequisites
-
-- Node.js (version 12 or higher)
-- npm (Node Package Manager)
-
-### Installation
-
-1. **Clone the Repository**
-
-   ```sh
-   git clone [repository URL]
-   cd [repository directory]
-   ```
-
-2. **Install Dependencies**
-
-   Navigate to the project directory and run:
-
-   ```sh
-   npm install
-   ```
-
-3. **Start the Server**
-
-   ```sh
-   npm start
-   ```
-
-   This will start the server on `localhost:3000` (or another port if configured).
-
-### Usage
-
-Once the server is running, open your web browser and go to `http://localhost:3000`. You'll see the Crypto Heatmap Dashboard displaying the live data.
-
-## How It Works
-
-- **Data Fetching**: `dataFetcher.js` periodically fetches market data from the crypto API.
-- **Server-Side Processing**: `index.js` processes the data and prepares it for the frontend.
-- **Frontend Visualization**: `public/main.js` and `public/index.html` handle the rendering of the bubble chart.
+```sh
+git clone https://github.com/shaiss/Crypto-RSI-Dashboard.git
+cd Crypto-RSI-Dashboard
+npm install
+```
 
 ## Configuration
 
-- **Config File**: `config.json` in the project root directory allows configuration of tokens and update intervals.
+Set your TAAPI API secret as an environment variable (never commit it):
 
-## Contributing
+```sh
+export TAAPI_SECRET=your_taapi_secret
+```
 
-Contributions are what make the open-source community such an amazing place to learn, inspire, and create. Any contributions you make are **greatly appreciated**.
+Without `TAAPI_SECRET`, `/api/session` still responds but returns `rsi: null` and an `errors` entry instead of crashing.
 
-1. Fork the Project
-2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the Branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+## Run
+
+```sh
+npm start
+```
+
+Server listens on `http://localhost:3000` (or `PORT` if set).
+
+## API
+
+### `GET /api/session`
+
+Returns a decision session for a single token and timeframe.
+
+**Query parameters**
+
+| Parameter   | Required | Default   | Description                                      |
+|------------|----------|-----------|--------------------------------------------------|
+| `token`    | yes      | —         | Base asset symbol, e.g. `BTC`                    |
+| `timeframe`| yes      | —         | One of `15m`, `1h`, `4h`, `1d`                   |
+| `exchange` | no       | `binance` | Exchange passed through to TAAPI                 |
+
+**Example**
+
+```sh
+curl "http://localhost:3000/api/session?token=BTC&timeframe=1h"
+```
+
+**Response shape**
+
+```json
+{
+  "token": "BTC",
+  "pair": "BTC/USDT",
+  "exchange": "binance",
+  "timeframe": "1h",
+  "rsi": 52.3,
+  "rsiAsOf": "2024-11-14T12:00:00.000Z",
+  "onWatchlist": false,
+  "alert": { "status": "none" }
+}
+```
+
+When configuration or upstream fetch fails, `rsi` and `rsiAsOf` are `null` and `errors` contains human-readable messages. Invalid timeframes return HTTP 400.
+
+## Project layout
+
+- `index.js` — Express server and `/api/session` route
+- `lib/taapiClient.js` — TAAPI RSI client (exchange, symbol, interval)
+- `lib/session.js` — Decision session builder and validation
+- `lib/constants.js` — Allowed timeframes and defaults
+- `test/session.test.js` — Mocked TAAPI smoke tests (no network or real secret)
+
+## Tests
+
+```sh
+npm test
+```
 
 ## License
 
-Distributed under the MIT License. See `LICENSE` for more information.
+MIT — see `LICENSE`.
 
 ## Contact
 
-Your Name - [shai@kalmansforge.com]
+shai@kalmansforge.com
