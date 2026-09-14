@@ -76,15 +76,17 @@ describe('GET /api/session', () => {
   let server;
   let baseUrl;
 
-  before(() => {
+  before(async () => {
     server = http.createServer(app);
-    server.listen(0);
+    await new Promise((resolve) => server.listen(0, resolve));
     const { port } = server.address();
     baseUrl = `http://127.0.0.1:${port}`;
   });
 
-  after(() => {
-    server.close();
+  after(async () => {
+    await new Promise((resolve, reject) => {
+      server.close((err) => (err ? reject(err) : resolve()));
+    });
   });
 
   it('returns 400 for invalid timeframe', async () => {
