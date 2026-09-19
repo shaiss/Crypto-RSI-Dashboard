@@ -1,10 +1,11 @@
 {
-  "name": "heatmap-mvp",
+  "name": "crypto-rsi-dashboard",
   "version": "1.0.0",
-  "description": "A simple MVP for a crypto RSI heatmap",
+  "description": "DeFi decision tool API for token RSI by timeframe",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "test": "node --test test/**/*.test.js"
   },
   "dependencies": {
     "axios": "^0.21.1",
