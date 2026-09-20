@@ -31,7 +31,15 @@ Optional: override the watchlist JSON path (default `data/watchlist.json`):
 export WATCHLIST_PATH=/path/to/watchlist.json
 ```
 
+Optional: override the alert conditions JSON path (default `data/alerts.json`):
+
+```sh
+export ALERTS_PATH=/path/to/alerts.json
+```
+
 Copy `data/watchlist.json.example` to `data/watchlist.json` if you want a local file in the repo layout; the runtime file is gitignored and created automatically when you add tokens.
+
+Copy `data/alerts.json.example` to `data/alerts.json` for local alert conditions; the runtime file is gitignored and created when you POST a condition.
 
 Without `TAAPI_SECRET`, `/api/session` still responds but returns `rsi: null` and an `errors` entry instead of crashing.
 
@@ -78,6 +86,16 @@ curl "http://localhost:3000/api/session?token=BTC&timeframe=1h"
 }
 ```
 
+`alert.status` is evaluated on each session fetch (no background polling):
+
+| Status   | Meaning |
+|----------|---------|
+| `none`   | No matching condition for this token/timeframe, RSI unavailable, or threshold not met |
+| `active` | A stored condition matches the latest RSI |
+| `recent` | Threshold not met now, but the condition fired on a prior fetch within the last 15 minutes |
+
+When `active` or `recent`, `conditionId` and `summary` describe the matched rule (e.g. `BTC 1h RSI 72.00 >= 70`).
+
 When configuration or upstream fetch fails, `rsi` and `rsiAsOf` are `null` and `errors` contains human-readable messages. Invalid timeframes return HTTP 400.
 
 `onWatchlist` is `true` when the normalized token symbol appears in the server-side watchlist store (JSON file).
@@ -122,16 +140,80 @@ Remove a token (case-insensitive). Returns `{ "removed": true|false, "tokens": [
 curl -X DELETE "http://localhost:3000/api/watchlist/BTC"
 ```
 
+### Alert conditions (`/api/alerts`)
+
+Session-only RSI alert rules stored in `data/alerts.json`. Each condition has:
+
+| Field        | Description |
+|-------------|-------------|
+| `id`        | UUID (server-generated) |
+| `token`     | Base symbol, e.g. `BTC` |
+| `timeframe` | One of `15m`, `1h`, `4h`, `1d` |
+| `op`        | Comparison: `<`, `<=`, `>`, or `>=` |
+| `threshold` | Numeric RSI level |
+
+Optional `lastFiredAt` (ISO timestamp) is updated when `/api/session` evaluates a met condition; it powers the `recent` alert status without background jobs.
+
+#### `GET /api/alerts`
+
+List all conditions.
+
+```sh
+curl "http://localhost:3000/api/alerts"
+```
+
+```json
+{ "conditions": [] }
+```
+
+#### `POST /api/alerts`
+
+Create a condition. Body JSON: `token`, `timeframe`, `op`, `threshold`.
+
+```sh
+curl -X POST "http://localhost:3000/api/alerts" \
+  -H "Content-Type: application/json" \
+  -d '{"token":"BTC","timeframe":"1h","op":">=","threshold":70}'
+```
+
+Response (`201`):
+
+```json
+{
+  "condition": {
+    "id": "…",
+    "token": "BTC",
+    "timeframe": "1h",
+    "op": ">=",
+    "threshold": 70
+  },
+  "conditions": [ … ]
+}
+```
+
+Invalid token, timeframe, operator, or threshold returns HTTP 400.
+
+#### `DELETE /api/alerts/:id`
+
+Remove a condition by id. Returns `{ "removed": true|false, "conditions": [...] }`.
+
+```sh
+curl -X DELETE "http://localhost:3000/api/alerts/<condition-id>"
+```
+
 ## Project layout
 
-- `index.js` — Express server, watchlist routes, and `/api/session`
+- `index.js` — Express server, watchlist routes, alert routes, and `/api/session`
 - `lib/watchlist.js` — JSON file watchlist persistence
+- `lib/alerts.js` — JSON alert condition store and session evaluator
 - `lib/taapiClient.js` — TAAPI RSI client (exchange, symbol, interval)
 - `lib/session.js` — Decision session builder and validation
 - `lib/constants.js` — Allowed timeframes and defaults
 - `data/watchlist.json.example` — Empty watchlist template
+- `data/alerts.json.example` — Empty alert conditions template
 - `test/session.test.js` — Mocked TAAPI smoke tests (no network or real secret)
 - `test/watchlist.test.js` — Watchlist CRUD and session `onWatchlist` tests
+- `test/alerts.test.js` — Alert CRUD, evaluator, and session `alert` tests
 
 ## Tests
 
