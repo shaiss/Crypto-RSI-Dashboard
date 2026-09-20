@@ -2,10 +2,12 @@ const express = require('express');
 const path = require('path');
 const { buildDecisionSession } = require('./lib/session');
 const { createWatchlistStore } = require('./lib/watchlist');
+const { createAlertsStore } = require('./lib/alerts');
 
 function createApp(options = {}) {
   const app = express();
   const watchlist = options.watchlistStore || createWatchlistStore(options.watchlistPath);
+  const alerts = options.alertsStore || createAlertsStore(options.alertsPath);
 
   app.use(express.json());
   app.use(express.static('public'));
@@ -36,6 +38,40 @@ function createApp(options = {}) {
     }
   });
 
+  app.get('/api/alerts', async (req, res) => {
+    try {
+      const conditions = await alerts.list();
+      return res.json({ conditions });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/alerts', async (req, res) => {
+    const { token, timeframe, op, threshold } = req.body ?? {};
+    try {
+      const result = await alerts.add({ token, timeframe, op, threshold });
+      if (!result.ok) {
+        return res.status(result.status).json({ error: result.error });
+      }
+      return res.status(201).json({ condition: result.condition, conditions: result.conditions });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.delete('/api/alerts/:id', async (req, res) => {
+    try {
+      const result = await alerts.remove(req.params.id);
+      if (!result.ok) {
+        return res.status(result.status).json({ error: result.error });
+      }
+      return res.json({ removed: result.removed, conditions: result.conditions });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
   app.delete('/api/watchlist/:token', async (req, res) => {
     try {
       const result = await watchlist.remove(req.params.token);
@@ -57,7 +93,13 @@ function createApp(options = {}) {
       return res.status(500).json({ error: err.message });
     }
 
-    const result = await buildDecisionSession({ token, timeframe, exchange, onWatchlist });
+    const result = await buildDecisionSession({
+      token,
+      timeframe,
+      exchange,
+      onWatchlist,
+      alertsStore: alerts,
+    });
 
     if (result.error) {
       return res.status(result.status).json({ error: result.error });
