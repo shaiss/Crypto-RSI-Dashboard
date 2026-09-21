@@ -1,13 +1,13 @@
 # Crypto RSI Dashboard
 
-DeFi decision tool for inspecting token RSI across supported timeframes. Slice A exposes a server-side decision-session API backed by [TAAPI](https://taapi.io/).
-
-The legacy heatmap bubble-chart UI remains in `public/` but is not the product surface. New work should target `/api/session`.
+DeFi decision tool for inspecting token RSI across supported timeframes. The default UI at `/` loads a decision session (token, timeframe, optional exchange) from `/api/session`. The legacy bubble heatmap remains under `/legacy/heatmap.html` for reference only.
 
 ## Prerequisites
 
 - Node.js 18+ (for built-in test runner and `fetch`)
 - npm
+- **Production (Vercel):** [Neon](https://neon.tech) Postgres — set `DATABASE_URL` (or `NEON_DATABASE_URL`)
+- **Local without Postgres:** set `USE_FILE_PERSISTENCE=true` to use JSON files under `data/`
 
 ## Installation
 
@@ -19,37 +19,44 @@ npm install
 
 ## Configuration
 
-Set your TAAPI API secret as an environment variable (never commit it):
-
-```sh
-export TAAPI_SECRET=your_taapi_secret
-```
-
-Optional: override the watchlist JSON path (default `data/watchlist.json`):
-
-```sh
-export WATCHLIST_PATH=/path/to/watchlist.json
-```
-
-Optional: override the alert conditions JSON path (default `data/alerts.json`):
-
-```sh
-export ALERTS_PATH=/path/to/alerts.json
-```
-
-Copy `data/watchlist.json.example` to `data/watchlist.json` if you want a local file in the repo layout; the runtime file is gitignored and created automatically when you add tokens.
-
-Copy `data/alerts.json.example` to `data/alerts.json` for local alert conditions; the runtime file is gitignored and created when you POST a condition.
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `TAAPI_SECRET` | recommended | TAAPI API secret for live RSI (never commit) |
+| `DATABASE_URL` | Vercel / prod | Neon Postgres connection string (preferred) |
+| `NEON_DATABASE_URL` | alternative | Same as `DATABASE_URL` if your Neon integration uses this name |
+| `USE_FILE_PERSISTENCE` | local only | Set to `true` to use JSON files instead of Postgres when no DB URL is set |
+| `WATCHLIST_PATH` | optional | Watchlist JSON path when using file persistence (default `data/watchlist.json`) |
+| `ALERTS_PATH` | optional | Alerts JSON path when using file persistence (default `data/alerts.json`) |
+| `PORT` | local only | HTTP port for `npm start` (default `3000`) |
 
 Without `TAAPI_SECRET`, `/api/session` still responds but returns `rsi: null` and an `errors` entry instead of crashing.
 
-## Run
+### Persistence
+
+- **Vercel / production:** watchlist and alert conditions are stored in **Neon Postgres**. Tables are created automatically on first use (see `migrations/001_init.sql`). Serverless filesystem JSON is not used in production.
+- **Local dev:** either point `DATABASE_URL` at a Neon branch, or set `USE_FILE_PERSISTENCE=true` and optionally copy `data/watchlist.json.example` / `data/alerts.json.example` into `data/*.json` (runtime files are gitignored).
+
+## Run locally
 
 ```sh
+export TAAPI_SECRET=your_taapi_secret
+# Option A — Neon
+export DATABASE_URL=postgresql://...
+# Option B — JSON files
+export USE_FILE_PERSISTENCE=true
+
 npm start
 ```
 
 Server listens on `http://localhost:3000` (or `PORT` if set).
+
+## Deploy on Vercel
+
+1. Import the GitHub repo in Vercel.
+2. Add environment variables: `TAAPI_SECRET`, `DATABASE_URL` (Neon integration or manual connection string).
+3. Deploy — `vercel.json` routes all traffic to the Express app via `api/index.js` (`@vercel/node`).
+
+No domain configuration is required in this repo; attach a custom domain in Vercel when ready.
 
 ## API
 
@@ -98,7 +105,7 @@ When `active` or `recent`, `conditionId` and `summary` describe the matched rule
 
 When configuration or upstream fetch fails, `rsi` and `rsiAsOf` are `null` and `errors` contains human-readable messages. Invalid timeframes return HTTP 400.
 
-`onWatchlist` is `true` when the normalized token symbol appears in the server-side watchlist store (JSON file).
+`onWatchlist` is `true` when the normalized token symbol appears in the server-side watchlist store (Postgres or local JSON).
 
 ### `GET /api/watchlist`
 
@@ -111,8 +118,6 @@ curl "http://localhost:3000/api/watchlist"
 ```json
 { "tokens": ["BTC", "ETH"] }
 ```
-
-If the watchlist file does not exist yet, the list is empty.
 
 ### `POST /api/watchlist`
 
@@ -142,7 +147,7 @@ curl -X DELETE "http://localhost:3000/api/watchlist/BTC"
 
 ### Alert conditions (`/api/alerts`)
 
-Session-only RSI alert rules stored in `data/alerts.json`. Each condition has:
+Session-only RSI alert rules. Each condition has:
 
 | Field        | Description |
 |-------------|-------------|
@@ -201,19 +206,28 @@ Remove a condition by id. Returns `{ "removed": true|false, "conditions": [...] 
 curl -X DELETE "http://localhost:3000/api/alerts/<condition-id>"
 ```
 
+## Database schema (Neon)
+
+Applied at runtime and documented in `migrations/001_init.sql`:
+
+- `watchlist_tokens` — `token` (PK), `created_at`
+- `alert_conditions` — `id` (UUID PK), `token`, `timeframe`, `op`, `threshold`, `last_fired_at`, `created_at`
+
 ## Project layout
 
 - `index.js` — Express server, watchlist routes, alert routes, and `/api/session`
-- `lib/watchlist.js` — JSON file watchlist persistence
-- `lib/alerts.js` — JSON alert condition store and session evaluator
+- `api/index.js` — Vercel serverless entry (re-exports Express app)
+- `vercel.json` — Rewrites all routes to the Express handler
+- `lib/watchlist.js` — Watchlist store (Postgres or JSON file)
+- `lib/alerts.js` — Alert condition store and session evaluator
+- `lib/db.js` — Neon client and schema bootstrap
+- `lib/persistence.js` — Store backend selection
 - `lib/taapiClient.js` — TAAPI RSI client (exchange, symbol, interval)
 - `lib/session.js` — Decision session builder and validation
 - `lib/constants.js` — Allowed timeframes and defaults
-- `data/watchlist.json.example` — Empty watchlist template
-- `data/alerts.json.example` — Empty alert conditions template
-- `test/session.test.js` — Mocked TAAPI smoke tests (no network or real secret)
-- `test/watchlist.test.js` — Watchlist CRUD and session `onWatchlist` tests
-- `test/alerts.test.js` — Alert CRUD, evaluator, and session `alert` tests
+- `public/index.html` — Decision session landing UI
+- `public/legacy/heatmap.html` — Archived heatmap demo
+- `test/` — API and store tests (file-backed stores; no network)
 
 ## Tests
 

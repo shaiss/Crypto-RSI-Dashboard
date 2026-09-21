@@ -8,6 +8,7 @@
     "test": "node --test test/**/*.test.js"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^0.10.4",
     "axios": "^0.21.1",
     "config.json": "^0.0.4",
     "express": "^4.17.1"
