@@ -34,6 +34,23 @@
       <button type="submit">Load session</button>
     </form>
 
+    <details class="card access-panel">
+      <summary>Watchlist mutations (optional)</summary>
+      <p class="hint">
+        Session load uses open <code>GET /api/session</code>. To add or remove watchlist entries from the browser,
+        paste the same <code>APP_ACCESS_TOKEN</code> value configured on the server (stored only in
+        <code>sessionStorage</code> on this device — never embedded in the app).
+      </p>
+      <label>
+        Access token
+        <input id="access-token" type="password" autocomplete="off" placeholder="Paste server token">
+      </label>
+      <div class="watchlist-actions">
+        <button type="button" id="watchlist-add" disabled>Add token to watchlist</button>
+        <button type="button" id="watchlist-remove" disabled>Remove from watchlist</button>
+      </div>
+    </details>
+
     <section id="status" class="status" hidden></section>
     <section id="result" class="card result" hidden>
       <dl id="session-fields"></dl>

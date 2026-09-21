@@ -145,6 +145,33 @@ dd.alert-recent {
   overflow-x: auto;
 }
 
+.access-panel {
+  margin-top: 1rem;
+}
+
+.access-panel summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.hint {
+  margin: 0.75rem 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.watchlist-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.watchlist-actions button {
+  margin-top: 0;
+  background: var(--border);
+}
+
 footer {
   margin-top: 2rem;
   font-size: 0.85rem;
