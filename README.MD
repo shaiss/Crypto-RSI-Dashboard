@@ -29,7 +29,7 @@ npm install
 | `ALERTS_PATH` | optional | Alerts JSON path when using file persistence (default `data/alerts.json`) |
 | `PORT` | local only | HTTP port for `npm start` (default `3000`) |
 | `CLERK_SECRET_KEY` | Vercel / prod (with DB) | Clerk secret for server-side session verification on watchlist and alert routes. |
-| `CLERK_PUBLISHABLE_KEY` | Vercel / prod | Clerk publishable key for the browser (optional alias: `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, which Vercel Clerk Marketplace often sets). |
+| `CLERK_PUBLISHABLE_KEY` | Vercel / prod | Clerk publishable key for the browser (preferred; set on Vercel prod+preview). Falls back to `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` when unset. |
 | `CLERK_ALLOWLIST_EMAILS` | optional | Comma-separated emails allowed to mutate watchlist/alerts. Default: `shaiss@gmail.com`. |
 
 Without `TAAPI_SECRET`, `/api/session` still responds but returns `rsi: null` and an `errors` entry instead of crashing.
@@ -68,7 +68,7 @@ Server listens on `http://localhost:3000` (or `PORT` if set).
 ## Deploy on Vercel
 
 1. Import the GitHub repo in Vercel.
-2. Add environment variables: `TAAPI_SECRET`, `DATABASE_URL` (Neon integration or manual connection string), `CLERK_SECRET_KEY`, and `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` (or `CLERK_PUBLISHABLE_KEY`). Optionally set `CLERK_ALLOWLIST_EMAILS`.
+2. Add environment variables: `TAAPI_SECRET`, `DATABASE_URL` (Neon integration or manual connection string), `CLERK_SECRET_KEY`, and `CLERK_PUBLISHABLE_KEY` (or `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` as fallback). Optionally set `CLERK_ALLOWLIST_EMAILS`.
 3. Deploy — `vercel.json` routes all traffic to the Express app via `api/index.js` (`@vercel/node`).
 
 No domain configuration is required in this repo; attach a custom domain in Vercel when ready.
