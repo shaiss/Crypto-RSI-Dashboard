@@ -29,6 +29,14 @@ describe('buildDecisionSession', () => {
     assert.equal(session.rsiAsOf, new Date(1700000000 * 1000).toISOString());
     assert.equal(session.onWatchlist, false);
     assert.deepEqual(session.alert, { status: 'none' });
+    assert.equal(session.rsiSeries.length, 1);
+    assert.equal(session.rsiSeries[0].value, 55.1);
+    assert.deepEqual(session.thresholds, {
+      buyBelow: null,
+      sellAbove: null,
+      buyConditionId: null,
+      sellConditionId: null,
+    });
     assert.equal(session.errors, undefined);
   });
 

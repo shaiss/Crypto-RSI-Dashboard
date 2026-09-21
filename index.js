@@ -7,6 +7,7 @@ const {
   createClerkAuthMiddleware,
   getClerkPublishableKey,
 } = require('./lib/apiAccess');
+const { restorePublicUrlMiddleware } = require('./lib/vercelRequest');
 
 function createApp(options = {}) {
   const app = express();
@@ -14,8 +15,8 @@ function createApp(options = {}) {
   const alerts = options.alertsStore || createAlertsStore(options.alertsPath);
 
   app.use(express.json());
+  app.use(options.vercelRequestMiddleware || restorePublicUrlMiddleware);
   app.use(options.apiAccessMiddleware || createClerkAuthMiddleware());
-  app.use(express.static('public'));
 
   app.get('/api/auth/config', (req, res) => {
     const publishableKey = getClerkPublishableKey();
@@ -23,10 +24,6 @@ function createApp(options = {}) {
       publishableKey,
       clerkEnabled: Boolean(publishableKey),
     });
-  });
-
-  app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
   });
 
   app.get('/api/watchlist', async (req, res) => {
@@ -51,6 +48,18 @@ function createApp(options = {}) {
     }
   });
 
+  app.delete('/api/watchlist/:token', async (req, res) => {
+    try {
+      const result = await watchlist.remove(req.params.token);
+      if (!result.ok) {
+        return res.status(result.status).json({ error: result.error });
+      }
+      return res.json({ removed: result.removed, tokens: result.tokens });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
   app.get('/api/alerts', async (req, res) => {
     try {
       const conditions = await alerts.list();
@@ -61,7 +70,26 @@ function createApp(options = {}) {
   });
 
   app.post('/api/alerts', async (req, res) => {
-    const { token, timeframe, op, threshold } = req.body ?? {};
+    const { token, timeframe, op, threshold, buyBelow, sellAbove } = req.body ?? {};
+    if (buyBelow != null || sellAbove != null) {
+      try {
+        const result = await alerts.setThresholds({
+          token,
+          timeframe,
+          buyBelow,
+          sellAbove,
+        });
+        if (!result.ok) {
+          return res.status(result.status).json({ error: result.error });
+        }
+        return res.status(200).json({
+          thresholds: result.thresholds,
+          conditions: result.conditions,
+        });
+      } catch (err) {
+        return res.status(500).json({ error: err.message });
+      }
+    }
     try {
       const result = await alerts.add({ token, timeframe, op, threshold });
       if (!result.ok) {
@@ -80,18 +108,6 @@ function createApp(options = {}) {
         return res.status(result.status).json({ error: result.error });
       }
       return res.json({ removed: result.removed, conditions: result.conditions });
-    } catch (err) {
-      return res.status(500).json({ error: err.message });
-    }
-  });
-
-  app.delete('/api/watchlist/:token', async (req, res) => {
-    try {
-      const result = await watchlist.remove(req.params.token);
-      if (!result.ok) {
-        return res.status(result.status).json({ error: result.error });
-      }
-      return res.json({ removed: result.removed, tokens: result.tokens });
     } catch (err) {
       return res.status(500).json({ error: err.message });
     }
@@ -119,6 +135,12 @@ function createApp(options = {}) {
     }
 
     return res.json(result.session);
+  });
+
+  app.use(express.static('public'));
+
+  app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
   });
 
   return app;

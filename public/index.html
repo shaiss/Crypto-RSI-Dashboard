@@ -5,19 +5,24 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Crypto RSI — Decision Session</title>
   <link rel="stylesheet" href="/app.css">
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
   <main class="page">
     <header>
       <h1>Decision session</h1>
-      <p class="subtitle">RSI snapshot for a token and timeframe via <code>/api/session</code>.</p>
+      <p class="subtitle">RSI chart and snapshot for a token and timeframe via <code>/api/session</code>.</p>
     </header>
 
     <form id="session-form" class="card">
-      <label>
-        Token
-        <input name="token" type="text" placeholder="BTC" required autocomplete="off">
-      </label>
+      <div class="token-field">
+        <label>
+          Token
+          <input id="token-input" name="token" type="text" list="l1-tokens" placeholder="BTC" required autocomplete="off">
+        </label>
+        <datalist id="l1-tokens"></datalist>
+        <div id="l1-picker" class="l1-picker" aria-label="Suggested L1 tokens"></div>
+      </div>
       <label>
         Timeframe
         <select name="timeframe" required>
@@ -35,9 +40,9 @@
     </form>
 
     <section class="card access-panel" id="auth-panel">
-      <h2 class="panel-title">Watchlist mutations</h2>
+      <h2 class="panel-title">Watchlist &amp; RSI thresholds</h2>
       <p class="hint" id="auth-hint">
-        Session load uses open <code>GET /api/session</code>. Sign in with Clerk to add or remove watchlist entries.
+        Session load uses open <code>GET /api/session</code>. Sign in with Clerk to change watchlist or buy/sell thresholds (stored as alert conditions).
       </p>
       <div id="auth-signed-out" hidden>
         <button type="button" id="clerk-sign-in">Sign in with Clerk</button>
@@ -47,16 +52,31 @@
         <button type="button" id="clerk-sign-out" class="secondary">Sign out</button>
       </div>
       <div id="auth-local-open" hidden>
-        <p class="hint">Clerk is not configured — watchlist mutations are open in local file mode.</p>
+        <p class="hint">Clerk is not configured — watchlist and threshold mutations are open in local file mode.</p>
       </div>
       <div class="watchlist-actions">
         <button type="button" id="watchlist-add" disabled>Add token to watchlist</button>
         <button type="button" id="watchlist-remove" disabled>Remove from watchlist</button>
       </div>
+      <form id="thresholds-form" class="thresholds-form">
+        <p class="hint">Buy when RSI is below the first level; sell when above the second. Saved via <code>POST /api/alerts</code> for this token + timeframe.</p>
+        <div class="threshold-row">
+          <label>
+            Buy below
+            <input name="buyBelow" type="number" min="0" max="100" step="0.1" placeholder="30">
+          </label>
+          <label>
+            Sell above
+            <input name="sellAbove" type="number" min="0" max="100" step="0.1" placeholder="70">
+          </label>
+        </div>
+        <button type="submit" id="thresholds-save" disabled>Save thresholds</button>
+      </form>
     </section>
 
     <section id="status" class="status" hidden></section>
     <section id="result" class="card result" hidden>
+      <div id="rsi-chart" class="rsi-chart" aria-label="RSI time series chart"></div>
       <dl id="session-fields"></dl>
       <pre id="session-json" class="json"></pre>
     </section>

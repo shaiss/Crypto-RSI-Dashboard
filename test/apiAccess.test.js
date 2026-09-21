@@ -146,6 +146,32 @@ describe('Clerk API access control', () => {
     assert.equal(response.status, 403);
   });
 
+  it('GET /api/watchlist returns 401 without Clerk session when auth is enforced', async () => {
+    const watchlistPath = await tempWatchlistPath();
+    await startServer({
+      watchlistPath,
+      apiAccessMiddleware: clerkMiddleware({
+        resolveAuthenticatedEmail: async () => null,
+      }),
+    });
+
+    const response = await fetch(`${baseUrl}/api/watchlist`);
+    assert.equal(response.status, 401);
+  });
+
+  it('GET /api/alerts returns 401 without Clerk session when auth is enforced', async () => {
+    const alertsPath = await tempAlertsPath();
+    await startServer({
+      alertsPath,
+      apiAccessMiddleware: clerkMiddleware({
+        resolveAuthenticatedEmail: async () => null,
+      }),
+    });
+
+    const response = await fetch(`${baseUrl}/api/alerts`);
+    assert.equal(response.status, 401);
+  });
+
   it('DELETE /api/alerts/:id returns 401 without session when auth is enforced', async () => {
     const alertsPath = await tempAlertsPath();
     await startServer({

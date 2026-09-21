@@ -25,6 +25,55 @@ function mockTaapiResponse(value = 42.5, timestamp = 1700000000) {
   });
 }
 
+describe('alert threshold helpers', () => {
+  it('setThresholds upserts buy/sell rules for token and timeframe', async () => {
+    const filePath = await tempAlertsPath();
+    const store = createAlertsStore(filePath);
+
+    let result = await store.setThresholds({
+      token: 'BTC',
+      timeframe: '1h',
+      buyBelow: 32,
+      sellAbove: 68,
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.thresholds.buyBelow, 32);
+    assert.equal(result.thresholds.sellAbove, 68);
+
+    const listed = await store.list();
+    assert.equal(listed.length, 2);
+    assert.ok(listed.some((c) => c.op === '<' && c.threshold === 32));
+    assert.ok(listed.some((c) => c.op === '>' && c.threshold === 68));
+
+    result = await store.setThresholds({
+      token: 'BTC',
+      timeframe: '1h',
+      buyBelow: 28,
+      sellAbove: null,
+    });
+    assert.equal(result.thresholds.buyBelow, 28);
+    assert.equal(result.thresholds.sellAbove, null);
+    assert.equal((await store.list()).length, 1);
+  });
+
+  it('getThresholdsForSession reads stored levels', async () => {
+    const filePath = await tempAlertsPath();
+    const store = createAlertsStore(filePath);
+    await store.setThresholds({
+      token: 'ETH',
+      timeframe: '4h',
+      buyBelow: 25,
+      sellAbove: 75,
+    });
+    const thresholds = await store.getThresholdsForSession({
+      token: 'eth',
+      timeframe: '4h',
+    });
+    assert.equal(thresholds.buyBelow, 25);
+    assert.equal(thresholds.sellAbove, 75);
+  });
+});
+
 describe('alert condition store', () => {
   it('lists empty when file is missing', async () => {
     const filePath = await tempAlertsPath();
@@ -229,5 +278,26 @@ describe('alerts HTTP API and session.alert', () => {
       body: JSON.stringify({ token: '', timeframe: '1h', op: '>=', threshold: 10 }),
     });
     assert.equal(response.status, 400);
+  });
+
+  it('POST /api/alerts accepts buyBelow/sellAbove thresholds', async () => {
+    const alertsPath = await tempAlertsPath();
+    await startServer(alertsPath);
+
+    const response = await fetch(`${baseUrl}/api/alerts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        token: 'SOL',
+        timeframe: '15m',
+        buyBelow: 30,
+        sellAbove: 72,
+      }),
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.thresholds.buyBelow, 30);
+    assert.equal(body.thresholds.sellAbove, 72);
+    assert.equal(body.conditions.length, 2);
   });
 });

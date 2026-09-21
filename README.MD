@@ -1,6 +1,6 @@
 # Crypto RSI Dashboard
 
-DeFi decision tool for inspecting token RSI across supported timeframes. The default UI at `/` loads a decision session (token, timeframe, optional exchange) from `/api/session`. The legacy bubble heatmap remains under `/legacy/heatmap.html` for reference only.
+DeFi decision tool for inspecting token RSI across supported timeframes. The default UI at `/` loads a decision session (token, timeframe, optional exchange) from `/api/session`, renders an **RSI line chart** (Plotly via CDN), and supports **buy-below / sell-above** thresholds stored as alert conditions. The legacy bubble heatmap remains under `/legacy/heatmap.html` for reference only.
 
 ## Prerequisites
 
@@ -37,14 +37,14 @@ Without `TAAPI_SECRET`, `/api/session` still responds but returns `rsi: null` an
 ### API access (Clerk + allowlist)
 
 - `GET /api/session` stays open for read-only decision sessions (Pulse v1).
-- `GET` / `POST` / `DELETE` on `/api/watchlist` and `/api/alerts` require a valid **Clerk** session when auth is enforced. The signed-in user’s primary email must appear in `CLERK_ALLOWLIST_EMAILS`.
+- `GET` / `POST` / `DELETE` on `/api/watchlist` and `/api/alerts` require a valid **Clerk** session when auth is enforced (not only mutations). The signed-in user’s primary email must appear in `CLERK_ALLOWLIST_EMAILS`.
 - When `DATABASE_URL` / `NEON_DATABASE_URL` is active and `USE_FILE_PERSISTENCE` is not set, **database mode** applies: if `CLERK_SECRET_KEY` or a non-empty `CLERK_ALLOWLIST_EMAILS` is missing, those routes return **503** (fail closed).
 - **Local file mode** without `CLERK_SECRET_KEY`: watchlist and alert routes stay open (same as before for local JSON dev). Setting `CLERK_SECRET_KEY` locally enforces Clerk on those routes.
 - API clients send `Authorization: Bearer <clerk_session_jwt>` (the landing UI obtains this via Clerk JS after sign-in).
 
 ### Decision UI and sign-in
 
-The landing page loads sessions with an unauthenticated `GET /api/session`. Use **Sign in with Clerk** to add or remove watchlist entries; mutations attach the Clerk session token automatically. Ensure your Clerk user’s primary email is on the allowlist. For `curl`, sign in via the UI or Clerk’s dashboard, copy a session JWT, and pass it as `Authorization: Bearer …`.
+The landing page loads sessions with an unauthenticated `GET /api/session`. Pick a suggested L1 token chip or enter any symbol, then view the Plotly RSI series for that timeframe. **Buy below** / **sell above** fields save per token+timeframe rules through `POST /api/alerts` (stored as `<` and `>` alert conditions; session `alert.status` reflects active/recent firings on reload). Use **Sign in with Clerk** to add or remove watchlist entries or change thresholds; mutations attach the Clerk session token automatically. Ensure your Clerk user’s primary email is on the allowlist. For `curl`, sign in via the UI or Clerk’s dashboard, copy a session JWT, and pass it as `Authorization: Bearer …`.
 
 ### Persistence
 
@@ -69,7 +69,7 @@ Server listens on `http://localhost:3000` (or `PORT` if set).
 
 1. Import the GitHub repo in Vercel.
 2. Add environment variables: `TAAPI_SECRET`, `DATABASE_URL` (Neon integration or manual connection string), `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY` (or `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` as fallback), and **`CLERK_ALLOWLIST_EMAILS`** (comma-separated allowlisted emails — configure in the Vercel dashboard, not in this repo).
-3. Deploy — `vercel.json` routes all traffic to the Express app via `api/index.js` (`@vercel/node`).
+3. Deploy — `vercel.json` routes all traffic to the Express app via `api/index.js` (`@vercel/node`). After merging Clerk or API route changes, trigger a **production redeploy** so `GET /api/auth/config` and allowlisted GET routes match `main`.
 
 No domain configuration is required in this repo; attach a custom domain in Vercel when ready.
 
@@ -103,10 +103,17 @@ curl "http://localhost:3000/api/session?token=BTC&timeframe=1h"
   "timeframe": "1h",
   "rsi": 52.3,
   "rsiAsOf": "2024-11-14T12:00:00.000Z",
+  "rsiSeries": [
+    { "value": 51.1, "time": "2024-11-14T10:00:00.000Z" },
+    { "value": 52.3, "time": "2024-11-14T12:00:00.000Z" }
+  ],
+  "thresholds": { "buyBelow": 30, "sellAbove": 70, "buyConditionId": "…", "sellConditionId": "…" },
   "onWatchlist": false,
   "alert": { "status": "none" }
 }
 ```
+
+`rsiSeries` is oldest → newest (one TAAPI call with `results`, default 60 candles). `thresholds` summarizes stored buy/sell alert rules for the requested token and timeframe.
 
 `alert.status` is evaluated on each session fetch (no background polling):
 
@@ -188,7 +195,19 @@ curl "http://localhost:3000/api/alerts"
 
 #### `POST /api/alerts`
 
-Create a condition. Body JSON: `token`, `timeframe`, `op`, `threshold`.
+Create a condition, or set **buy-below / sell-above** thresholds for a token+timeframe.
+
+**Single condition:** body JSON `token`, `timeframe`, `op`, `threshold`.
+
+**Thresholds shortcut:** include `buyBelow` and/or `sellAbove` (numbers). Omit or send `null` to clear that side. Replaces any existing buy (`<`, `<=`) or sell (`>`, `>=`) rules for the same token and timeframe. Response includes `thresholds` and full `conditions` list (HTTP 200).
+
+```sh
+curl -X POST "http://localhost:3000/api/alerts" \
+  -H "Content-Type: application/json" \
+  -d '{"token":"BTC","timeframe":"1h","buyBelow":30,"sellAbove":70}'
+```
+
+**Classic condition example:**
 
 ```sh
 curl -X POST "http://localhost:3000/api/alerts" \
