@@ -2,6 +2,12 @@
 
 DeFi decision tool for inspecting token RSI across supported timeframes. The default UI at `/` loads a decision session (token, timeframe, optional exchange) from `/api/session`, renders an **RSI line chart** (Plotly via CDN), and supports **buy-below / sell-above** thresholds stored as alert conditions. The legacy bubble heatmap remains under `/legacy/heatmap.html` for reference only.
 
+### Product scope (Pulse)
+
+**In:** RSI sessions, Plotly history, email allowlist (`CLERK_ALLOWLIST_EMAILS`), Clerk sign-in (Google OAuth and/or Web3 wallet when enabled in the Clerk Dashboard), **UI-gated** paper “would-have” buy/sell signals from RSI thresholds.
+
+**Out (hard):** swaps, on-chain or off-chain trade execution, Magic/wallet-as-trading, Bollinger bands, WalletConnect-as-product, or any flow that moves funds. Connected wallets are used only to unlock strategy UI and annotate paper events — not to sign transactions.
+
 ## Prerequisites
 
 - Node.js 18+ (for built-in test runner and `fetch`)
@@ -39,8 +45,9 @@ Without `TAAPI_SECRET`, `/api/session` still responds but returns `rsi: null` an
 
 - `GET /api/session` stays open for read-only decision sessions (Pulse v1).
 - `GET` / `POST` / `DELETE` on `/api/watchlist` and `/api/alerts` require a valid **Clerk** session when auth is enforced (not only mutations). The signed-in user’s primary email must appear in `CLERK_ALLOWLIST_EMAILS`.
-- **Web3 wallet (Clerk):** `GET /api/me` returns `walletConnected` and a truncated address from the user’s Clerk Web3 wallet. Threshold edits (`POST /api/alerts` with `buyBelow` / `sellAbove`) and `GET /api/strategy/events` require an allowlisted session **and** a connected Clerk Web3 wallet. The landing UI hides threshold controls until a wallet is connected.
-- **Paper strategy only:** when an allowlisted user with a connected wallet loads `/api/session`, the server evaluates RSI against stored thresholds and logs **would-have** buy/sell signals to Neon (`strategy_events`). No swaps, trades, or WalletConnect product flows are executed.
+- **Web3 wallet (Clerk, UI gate):** `GET /api/me` returns `walletConnected` and a truncated address from the user’s Clerk Web3 wallet. The landing UI hides threshold controls and the paper strategy timeline until a wallet is linked; use **Connect Web3 wallet** (Clerk user profile) after Google sign-in when Stack enables Web3 in the Dashboard. Protected API routes still require allowlisted Clerk email only — wallet is not an execution capability.
+- **Paper strategy only:** when an allowlisted signed-in user loads `/api/session` (send the Clerk session JWT), the server evaluates RSI against stored thresholds and logs **would-have** buy/sell signals to Neon (`strategy_events`), with optional `wallet_address` when linked. No swaps or trades are executed.
+- **Sign-in UI:** `Sign in (Google or wallet)` opens the standard Clerk modal (`openSignIn` with hash routing) so Dashboard-enabled Google OAuth and Web3 providers appear without custom auth code in this repo.
 - When `DATABASE_URL` / `NEON_DATABASE_URL` is active and `USE_FILE_PERSISTENCE` is not set, **database mode** applies: if `CLERK_SECRET_KEY` or a non-empty `CLERK_ALLOWLIST_EMAILS` is missing, those routes return **503** (fail closed).
 - **Local file mode** without `CLERK_SECRET_KEY`: watchlist and alert routes stay open (same as before for local JSON dev). Setting `CLERK_SECRET_KEY` locally enforces Clerk on those routes.
 - API clients send `Authorization: Bearer <clerk_session_jwt>` (the landing UI obtains this via Clerk JS after sign-in).
@@ -150,7 +157,7 @@ Clerk-authenticated profile for the landing UI (requires allowlisted session whe
 
 ### `GET /api/strategy/events`
 
-List paper strategy signal events (Clerk + allowlist + **connected Web3 wallet**). Optional query: `token`, `timeframe`, `limit` (default 50, max 200).
+List paper strategy signal events (allowlisted Clerk session). Optional query: `token`, `timeframe`, `limit` (default 50, max 200).
 
 ```json
 {

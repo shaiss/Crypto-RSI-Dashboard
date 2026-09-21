@@ -45,12 +45,15 @@
         Session load uses open <code>GET /api/session</code>. Sign in with Clerk to change watchlist or buy/sell thresholds (stored as alert conditions).
       </p>
       <div id="auth-signed-out" hidden>
-        <button type="button" id="clerk-sign-in">Sign in with Clerk</button>
+        <button type="button" id="clerk-sign-in">Sign in (Google or wallet)</button>
       </div>
       <div id="auth-signed-in" hidden>
         <p class="hint">Signed in as <strong id="clerk-user-email"></strong></p>
         <p class="hint" id="wallet-status" hidden></p>
-        <button type="button" id="clerk-sign-out" class="secondary">Sign out</button>
+        <div class="auth-signed-in-actions">
+          <button type="button" id="clerk-connect-wallet" class="secondary" hidden>Connect Web3 wallet</button>
+          <button type="button" id="clerk-sign-out" class="secondary">Sign out</button>
+        </div>
       </div>
       <div id="auth-local-open" hidden>
         <p class="hint">Clerk is not configured — watchlist and threshold mutations are open in local file mode.</p>

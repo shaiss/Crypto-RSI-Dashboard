@@ -244,24 +244,11 @@ describe('Clerk API access control', () => {
     assert.match(body.error, /CLERK_ALLOWLIST_EMAILS/);
   });
 
-  it('GET /api/strategy/events returns 403 without connected wallet', async () => {
+  it('GET /api/strategy/events succeeds for allowlisted Clerk user (wallet optional)', async () => {
     const watchlistPath = await tempWatchlistPath();
     await startServer({
       watchlistPath,
       apiAccessMiddleware: clerkMiddleware({ walletConnected: false }),
-    });
-
-    const response = await fetch(`${baseUrl}/api/strategy/events`, {
-      headers: { Authorization: 'Bearer mock-session-jwt' },
-    });
-    assert.equal(response.status, 403);
-  });
-
-  it('GET /api/strategy/events succeeds with wallet-connected Clerk user', async () => {
-    const watchlistPath = await tempWatchlistPath();
-    await startServer({
-      watchlistPath,
-      apiAccessMiddleware: clerkMiddleware({ walletConnected: true }),
     });
 
     const response = await fetch(`${baseUrl}/api/strategy/events`, {

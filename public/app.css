@@ -170,6 +170,17 @@ dd.alert-recent {
   font-size: 0.85rem;
 }
 
+.auth-signed-in-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+}
+
+.auth-signed-in-actions button {
+  margin-top: 0;
+}
+
 .watchlist-actions {
   display: flex;
   flex-wrap: wrap;

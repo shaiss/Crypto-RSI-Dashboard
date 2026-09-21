@@ -17,6 +17,7 @@ const authSignedOut = document.getElementById('auth-signed-out');
 const authSignedIn = document.getElementById('auth-signed-in');
 const authLocalOpen = document.getElementById('auth-local-open');
 const clerkSignInBtn = document.getElementById('clerk-sign-in');
+const clerkConnectWalletBtn = document.getElementById('clerk-connect-wallet');
 const clerkSignOutBtn = document.getElementById('clerk-sign-out');
 const clerkUserEmailEl = document.getElementById('clerk-user-email');
 const walletStatusEl = document.getElementById('wallet-status');
@@ -30,6 +31,43 @@ let clerkRequired = false;
 let lastSession = null;
 /** @type {{ walletConnected: boolean, walletAddressTruncated: string|null }} */
 let meProfile = { walletConnected: false, walletAddressTruncated: null };
+
+/** Clerk modal options — compatible with Dashboard-enabled Google OAuth + Web3 wallets (no custom trading flows). */
+function clerkModalBaseOptions() {
+  return {
+    routing: 'hash',
+    redirectUrl: window.location.href,
+    appearance: {
+      elements: {
+        socialButtonsBlockButton: 'cl-social-btn',
+      },
+    },
+  };
+}
+
+function openClerkSignIn() {
+  if (!clerk) {
+    return;
+  }
+  if (typeof clerk.openSignIn === 'function') {
+    clerk.openSignIn(clerkModalBaseOptions());
+    return;
+  }
+  clerk.redirectToSignIn?.({ redirectUrl: window.location.href });
+}
+
+function openClerkUserProfile() {
+  if (!clerk) {
+    return;
+  }
+  if (typeof clerk.openUserProfile === 'function') {
+    clerk.openUserProfile(clerkModalBaseOptions());
+    return;
+  }
+  if (typeof clerk.redirectToUserProfile === 'function') {
+    clerk.redirectToUserProfile();
+  }
+}
 
 function setStatus(message, kind) {
   statusEl.hidden = !message;
@@ -287,13 +325,16 @@ function updateAuthUi() {
     const email = user.primaryEmailAddress?.emailAddress || user.emailAddresses?.[0]?.emailAddress || '—';
     clerkUserEmailEl.textContent = email;
   }
+  if (clerkConnectWalletBtn) {
+    clerkConnectWalletBtn.hidden = !user || meProfile.walletConnected;
+  }
   if (walletStatusEl) {
     if (user && meProfile.walletConnected) {
       walletStatusEl.hidden = false;
-      walletStatusEl.textContent = `Wallet ${meProfile.walletAddressTruncated || 'connected'}`;
+      walletStatusEl.textContent = `Wallet ${meProfile.walletAddressTruncated || 'connected'} (UI gate for paper strategy — no trading).`;
     } else if (user) {
       walletStatusEl.hidden = false;
-      walletStatusEl.textContent = 'No Web3 wallet connected in Clerk — connect one to enable paper strategy controls.';
+      walletStatusEl.textContent = 'No Web3 wallet linked in Clerk. Use “Connect Web3 wallet” after Google sign-in to unlock paper threshold controls.';
     } else {
       walletStatusEl.hidden = true;
     }
@@ -425,7 +466,7 @@ if (thresholdsForm) {
       return;
     }
     if (clerkRequired && !clerk?.user) {
-      clerk?.openSignIn();
+      openClerkSignIn();
       return;
     }
     if (clerkRequired && !meProfile.walletConnected) {
@@ -468,13 +509,13 @@ if (thresholdsForm) {
 
 if (clerkSignInBtn) {
   clerkSignInBtn.addEventListener('click', () => {
-    clerk?.openSignIn({
-      appearance: {
-        elements: {
-          socialButtonsBlockButton: 'cl-social-btn',
-        },
-      },
-    });
+    openClerkSignIn();
+  });
+}
+
+if (clerkConnectWalletBtn) {
+  clerkConnectWalletBtn.addEventListener('click', () => {
+    openClerkUserProfile();
   });
 }
 
@@ -512,7 +553,7 @@ watchlistAddBtn.addEventListener('click', async () => {
     return;
   }
   if (clerkRequired && !clerk?.user) {
-    clerk?.openSignIn();
+    openClerkSignIn();
     return;
   }
   try {
@@ -530,7 +571,7 @@ watchlistRemoveBtn.addEventListener('click', async () => {
     return;
   }
   if (clerkRequired && !clerk?.user) {
-    clerk?.openSignIn();
+    openClerkSignIn();
     return;
   }
   try {

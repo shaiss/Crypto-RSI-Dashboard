@@ -230,7 +230,7 @@ function createApp(options = {}) {
     const session = result.session;
     session.paperStrategy = { events: [] };
 
-    if (clerkAuth?.walletConnected && session.rsi != null) {
+    if (clerkAuth && session.rsi != null) {
       try {
         const recorded = await strategyEvents.recordSessionEvaluation({
           token: session.token,
@@ -238,7 +238,7 @@ function createApp(options = {}) {
           rsi: session.rsi,
           buyBelow: session.thresholds?.buyBelow,
           sellAbove: session.thresholds?.sellAbove,
-          walletAddress: clerkAuth.walletAddress,
+          walletAddress: clerkAuth.walletConnected ? clerkAuth.walletAddress : null,
         });
         session.paperStrategy.events = recorded;
         const recent = await strategyEvents.list({
