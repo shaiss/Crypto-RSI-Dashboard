@@ -19,11 +19,17 @@ const authLocalOpen = document.getElementById('auth-local-open');
 const clerkSignInBtn = document.getElementById('clerk-sign-in');
 const clerkSignOutBtn = document.getElementById('clerk-sign-out');
 const clerkUserEmailEl = document.getElementById('clerk-user-email');
+const walletStatusEl = document.getElementById('wallet-status');
+const walletGateHintEl = document.getElementById('wallet-gate-hint');
+const strategyTimelineEl = document.getElementById('strategy-timeline');
+const strategyEventsListEl = document.getElementById('strategy-events-list');
 
 /** @type {typeof window.Clerk | null} */
 let clerk = null;
 let clerkRequired = false;
 let lastSession = null;
+/** @type {{ walletConnected: boolean, walletAddressTruncated: string|null }} */
+let meProfile = { walletConnected: false, walletAddressTruncated: null };
 
 function setStatus(message, kind) {
   statusEl.hidden = !message;
@@ -153,6 +159,38 @@ function renderRsiChart(session) {
   Plotly.react(chartEl, traces, layout, { responsive: true, displayModeBar: false });
 }
 
+function formatStrategyEventLabel(event) {
+  const side = event.side === 'buy' ? 'Would have bought' : 'Would have sold';
+  const when = event.createdAt ? new Date(event.createdAt).toISOString() : '—';
+  return `${side} ${event.token} (${event.timeframe}) at RSI ${event.rsi} (threshold ${event.threshold}) — ${when}`;
+}
+
+function renderStrategyTimeline(session) {
+  if (!strategyTimelineEl || !strategyEventsListEl) {
+    return;
+  }
+  const show = clerkRequired && meProfile.walletConnected;
+  strategyTimelineEl.hidden = !show;
+  if (!show) {
+    strategyEventsListEl.replaceChildren();
+    return;
+  }
+  const events = session?.paperStrategy?.recentEvents || [];
+  strategyEventsListEl.replaceChildren();
+  if (events.length === 0) {
+    const empty = document.createElement('li');
+    empty.textContent = 'No paper signals yet for this token and timeframe.';
+    strategyEventsListEl.append(empty);
+    return;
+  }
+  for (const event of events) {
+    const item = document.createElement('li');
+    item.className = event.side === 'buy' ? 'side-buy' : 'side-sell';
+    item.textContent = formatStrategyEventLabel(event);
+    strategyEventsListEl.append(item);
+  }
+}
+
 function syncThresholdForm(session) {
   if (!thresholdsForm) {
     return;
@@ -209,6 +247,7 @@ function renderSession(session) {
   jsonEl.textContent = JSON.stringify(session, null, 2);
   renderRsiChart(session);
   syncThresholdForm(session);
+  renderStrategyTimeline(session);
   resultEl.hidden = false;
 
   updateMutationButtons(session.token);
@@ -217,10 +256,17 @@ function renderSession(session) {
 function updateMutationButtons(token) {
   const hasToken = Boolean(String(token || '').trim());
   const signedIn = clerk ? Boolean(clerk.user) : !clerkRequired;
+  const walletReady = !clerkRequired || meProfile.walletConnected;
   watchlistAddBtn.disabled = !hasToken || !signedIn;
   watchlistRemoveBtn.disabled = !hasToken || !signedIn;
   if (thresholdsSaveBtn) {
-    thresholdsSaveBtn.disabled = !hasToken || !signedIn;
+    thresholdsSaveBtn.disabled = !hasToken || !signedIn || !walletReady;
+  }
+  if (thresholdsForm) {
+    thresholdsForm.hidden = clerkRequired && signedIn && !walletReady;
+  }
+  if (walletGateHintEl) {
+    walletGateHintEl.hidden = !(clerkRequired && signedIn && !walletReady);
   }
 }
 
@@ -241,7 +287,42 @@ function updateAuthUi() {
     const email = user.primaryEmailAddress?.emailAddress || user.emailAddresses?.[0]?.emailAddress || '—';
     clerkUserEmailEl.textContent = email;
   }
+  if (walletStatusEl) {
+    if (user && meProfile.walletConnected) {
+      walletStatusEl.hidden = false;
+      walletStatusEl.textContent = `Wallet ${meProfile.walletAddressTruncated || 'connected'}`;
+    } else if (user) {
+      walletStatusEl.hidden = false;
+      walletStatusEl.textContent = 'No Web3 wallet connected in Clerk — connect one to enable paper strategy controls.';
+    } else {
+      walletStatusEl.hidden = true;
+    }
+  }
   updateMutationButtons(String(new FormData(form).get('token') || '').trim());
+}
+
+async function refreshMeProfile() {
+  if (!clerkRequired) {
+    meProfile = { walletConnected: false, walletAddressTruncated: null };
+    return meProfile;
+  }
+  try {
+    const headers = await mutationHeaders();
+    const response = await fetch('/api/me', { headers });
+    if (!response.ok) {
+      meProfile = { walletConnected: false, walletAddressTruncated: null };
+      return meProfile;
+    }
+    const body = await response.json();
+    meProfile = {
+      walletConnected: Boolean(body.walletConnected),
+      walletAddressTruncated: body.walletAddressTruncated || null,
+    };
+    return meProfile;
+  } catch {
+    meProfile = { walletConnected: false, walletAddressTruncated: null };
+    return meProfile;
+  }
 }
 
 async function loadClerkScript(publishableKey) {
@@ -272,7 +353,14 @@ async function initClerkAuth() {
     }
     clerkRequired = true;
     clerk = await loadClerkScript(config.publishableKey);
-    clerk.addListener(() => updateAuthUi());
+    clerk.addListener(async () => {
+      await refreshMeProfile();
+      updateAuthUi();
+      if (lastSession) {
+        renderStrategyTimeline(lastSession);
+      }
+    });
+    await refreshMeProfile();
     updateAuthUi();
   } catch (err) {
     console.error(err);
@@ -305,7 +393,9 @@ async function loadSessionFromForm() {
   setStatus('Loading session…', 'loading');
   resultEl.hidden = true;
 
-  const response = await fetch(`/api/session?${params.toString()}`);
+  const response = await fetch(`/api/session?${params.toString()}`, {
+    headers: await mutationHeaders(),
+  });
   const body = await response.json();
   if (!response.ok) {
     setStatus(body.error || `Request failed (${response.status})`, 'error');
@@ -336,6 +426,10 @@ if (thresholdsForm) {
     }
     if (clerkRequired && !clerk?.user) {
       clerk?.openSignIn();
+      return;
+    }
+    if (clerkRequired && !meProfile.walletConnected) {
+      setStatus('Connect a Web3 wallet in Clerk to save thresholds.', 'error');
       return;
     }
 
@@ -374,13 +468,20 @@ if (thresholdsForm) {
 
 if (clerkSignInBtn) {
   clerkSignInBtn.addEventListener('click', () => {
-    clerk?.openSignIn();
+    clerk?.openSignIn({
+      appearance: {
+        elements: {
+          socialButtonsBlockButton: 'cl-social-btn',
+        },
+      },
+    });
   });
 }
 
 if (clerkSignOutBtn) {
   clerkSignOutBtn.addEventListener('click', async () => {
     await clerk?.signOut();
+    meProfile = { walletConnected: false, walletAddressTruncated: null };
     updateAuthUi();
   });
 }

@@ -5,11 +5,28 @@ const app = require('../index');
 const { buildDecisionSession } = require('../lib/session');
 
 function mockTaapiResponse(value = 42.5, timestamp = 1700000000) {
-  return async (url, config) => ({
-    status: 200,
-    data: { value, timestamp },
-    config,
-  });
+  return async (url, config) => {
+    const results = config?.params?.results ?? 1;
+    const count = Math.max(1, Number(results) || 1);
+    const values = Array.from({ length: count }, (_, index) => {
+      if (Array.isArray(value)) {
+        return value[index] ?? value[value.length - 1];
+      }
+      return value;
+    });
+    const timestamps = Array.from({ length: count }, (_, index) => {
+      const base = Array.isArray(timestamp) ? timestamp[0] : timestamp;
+      return base + index;
+    });
+    const data = count === 1
+      ? { value: values[0], timestamp: timestamps[0] }
+      : { value: values, timestamp: timestamps };
+    return {
+      status: 200,
+      data,
+      config,
+    };
+  };
 }
 
 describe('buildDecisionSession', () => {
@@ -26,11 +43,13 @@ describe('buildDecisionSession', () => {
     assert.equal(session.exchange, 'binance');
     assert.equal(session.timeframe, '1h');
     assert.equal(session.rsi, 55.1);
-    assert.equal(session.rsiAsOf, new Date(1700000000 * 1000).toISOString());
+    const { DEFAULT_RSI_CHART_RESULTS } = require('../lib/constants');
+    const latestTs = 1700000000 + DEFAULT_RSI_CHART_RESULTS - 1;
+    assert.equal(session.rsiAsOf, new Date(latestTs * 1000).toISOString());
     assert.equal(session.onWatchlist, false);
     assert.deepEqual(session.alert, { status: 'none' });
-    assert.equal(session.rsiSeries.length, 1);
-    assert.equal(session.rsiSeries[0].value, 55.1);
+    assert.equal(session.rsiSeries.length, DEFAULT_RSI_CHART_RESULTS);
+    assert.equal(session.rsiSeries[session.rsiSeries.length - 1].value, 55.1);
     assert.deepEqual(session.thresholds, {
       buyBelow: null,
       sellAbove: null,

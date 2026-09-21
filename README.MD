@@ -30,7 +30,8 @@ npm install
 | `PORT` | local only | HTTP port for `npm start` (default `3000`) |
 | `CLERK_SECRET_KEY` | Vercel / prod (with DB) | Clerk secret for server-side session verification on watchlist and alert routes. |
 | `CLERK_PUBLISHABLE_KEY` | Vercel / prod | Clerk publishable key for the browser (preferred; set on Vercel prod+preview). Falls back to `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` when unset. |
-| `CLERK_ALLOWLIST_EMAILS` | Vercel / prod (with DB) | Comma-separated Clerk primary emails allowed on watchlist/alert routes (e.g. `admin@example.com`). **Required** when Clerk auth is enforced; if unset or empty, protected routes return **503** (fail closed). Set only in Vercel/host env — never commit real addresses. |
+| `CLERK_ALLOWLIST_EMAILS` | Vercel / prod (with DB) | Comma-separated Clerk primary emails allowed on protected routes (e.g. `admin@example.com`). **Required** when Clerk auth is enforced; if unset or empty, protected routes return **503** (fail closed). Set only in Vercel/host env — never commit real addresses. |
+| `STRATEGY_EVENTS_PATH` | optional | Paper strategy event log JSON path when using file persistence (default `data/strategy-events.json`) |
 
 Without `TAAPI_SECRET`, `/api/session` still responds but returns `rsi: null` and an `errors` entry instead of crashing.
 
@@ -38,13 +39,15 @@ Without `TAAPI_SECRET`, `/api/session` still responds but returns `rsi: null` an
 
 - `GET /api/session` stays open for read-only decision sessions (Pulse v1).
 - `GET` / `POST` / `DELETE` on `/api/watchlist` and `/api/alerts` require a valid **Clerk** session when auth is enforced (not only mutations). The signed-in user’s primary email must appear in `CLERK_ALLOWLIST_EMAILS`.
+- **Web3 wallet (Clerk):** `GET /api/me` returns `walletConnected` and a truncated address from the user’s Clerk Web3 wallet. Threshold edits (`POST /api/alerts` with `buyBelow` / `sellAbove`) and `GET /api/strategy/events` require an allowlisted session **and** a connected Clerk Web3 wallet. The landing UI hides threshold controls until a wallet is connected.
+- **Paper strategy only:** when an allowlisted user with a connected wallet loads `/api/session`, the server evaluates RSI against stored thresholds and logs **would-have** buy/sell signals to Neon (`strategy_events`). No swaps, trades, or WalletConnect product flows are executed.
 - When `DATABASE_URL` / `NEON_DATABASE_URL` is active and `USE_FILE_PERSISTENCE` is not set, **database mode** applies: if `CLERK_SECRET_KEY` or a non-empty `CLERK_ALLOWLIST_EMAILS` is missing, those routes return **503** (fail closed).
 - **Local file mode** without `CLERK_SECRET_KEY`: watchlist and alert routes stay open (same as before for local JSON dev). Setting `CLERK_SECRET_KEY` locally enforces Clerk on those routes.
 - API clients send `Authorization: Bearer <clerk_session_jwt>` (the landing UI obtains this via Clerk JS after sign-in).
 
 ### Decision UI and sign-in
 
-The landing page loads sessions with an unauthenticated `GET /api/session`. Pick a suggested L1 token chip or enter any symbol, then view the Plotly RSI series for that timeframe. **Buy below** / **sell above** fields save per token+timeframe rules through `POST /api/alerts` (stored as `<` and `>` alert conditions; session `alert.status` reflects active/recent firings on reload). Use **Sign in with Clerk** to add or remove watchlist entries or change thresholds; mutations attach the Clerk session token automatically. Ensure your Clerk user’s primary email is on the allowlist. For `curl`, sign in via the UI or Clerk’s dashboard, copy a session JWT, and pass it as `Authorization: Bearer …`.
+The landing page loads sessions with an unauthenticated `GET /api/session` (optionally send a Clerk JWT to evaluate paper strategy events). Pick a suggested L1 token chip or enter any symbol, then view the Plotly RSI series for that timeframe. **Buy below** / **sell above** fields appear only after **Sign in with Clerk** and connecting a **Web3 wallet** in Clerk; they save per token+timeframe rules through `POST /api/alerts` (stored as `<` and `>` alert conditions; session `alert.status` reflects active/recent firings on reload). A **paper strategy timeline** lists logged would-have buy/sell signals (no execution). Use **Sign in with Clerk** to manage the watchlist; mutations attach the Clerk session token automatically. Ensure your Clerk user’s primary email is on the allowlist. For `curl`, sign in via the UI or Clerk’s dashboard, copy a session JWT, and pass it as `Authorization: Bearer …`.
 
 ### Persistence
 
@@ -113,7 +116,9 @@ curl "http://localhost:3000/api/session?token=BTC&timeframe=1h"
 }
 ```
 
-`rsiSeries` is oldest → newest (one TAAPI call with `results`, default 60 candles). `thresholds` summarizes stored buy/sell alert rules for the requested token and timeframe.
+`rsiSeries` is oldest → newest (one TAAPI `GET /rsi` call with `results=60` by default — about 60 candles of the selected interval, e.g. 60 hours on `1h`). `thresholds` summarizes stored buy/sell alert rules for the requested token and timeframe.
+
+When the request includes a valid allowlisted Clerk session with a connected Web3 wallet, the response also includes `paperStrategy.recentEvents` (timeline) and may append new rows to `strategy_events` when RSI crosses thresholds (idempotent: one open signal per token/timeframe/side until RSI clears the band).
 
 `alert.status` is evaluated on each session fetch (no background polling):
 
@@ -128,6 +133,41 @@ When `active` or `recent`, `conditionId` and `summary` describe the matched rule
 When configuration or upstream fetch fails, `rsi` and `rsiAsOf` are `null` and `errors` contains human-readable messages. Invalid timeframes return HTTP 400.
 
 `onWatchlist` is `true` when the normalized token symbol appears in the server-side watchlist store (Postgres or local JSON).
+
+### `GET /api/me`
+
+Clerk-authenticated profile for the landing UI (requires allowlisted session when Clerk auth is enforced).
+
+```json
+{
+  "clerkEnabled": true,
+  "authenticated": true,
+  "email": "admin@example.com",
+  "walletConnected": true,
+  "walletAddressTruncated": "0xabcd…1234"
+}
+```
+
+### `GET /api/strategy/events`
+
+List paper strategy signal events (Clerk + allowlist + **connected Web3 wallet**). Optional query: `token`, `timeframe`, `limit` (default 50, max 200).
+
+```json
+{
+  "events": [
+    {
+      "id": "…",
+      "token": "BTC",
+      "timeframe": "1h",
+      "side": "buy",
+      "rsi": 28.5,
+      "threshold": 30,
+      "walletAddress": "0x…",
+      "createdAt": "2024-11-14T12:00:00.000Z"
+    }
+  ]
+}
+```
 
 ### `GET /api/watchlist`
 
@@ -246,6 +286,8 @@ Applied at runtime and documented in `migrations/001_init.sql`:
 
 - `watchlist_tokens` — `token` (PK), `created_at`
 - `alert_conditions` — `id` (UUID PK), `token`, `timeframe`, `op`, `threshold`, `last_fired_at`, `created_at`
+- `strategy_events` — paper would-have buy/sell log (`side`, `rsi`, `threshold`, optional `wallet_address`, `created_at`)
+- `strategy_signal_state` — open/closed signal state per token/timeframe/side (idempotent logging)
 
 ## Project layout
 
@@ -256,7 +298,10 @@ Applied at runtime and documented in `migrations/001_init.sql`:
 - `lib/alerts.js` — Alert condition store and session evaluator
 - `lib/db.js` — Neon client and schema bootstrap
 - `lib/persistence.js` — Store backend selection
-- `lib/apiAccess.js` — Clerk session verification, email allowlist, DB-mode fail-closed
+- `lib/apiAccess.js` — Clerk session verification, email allowlist, Web3 wallet gate, DB-mode fail-closed
+- `lib/wallet.js` — Clerk Web3 wallet address extraction
+- `lib/strategySignals.js` — RSI threshold signal evaluation
+- `lib/strategyEvents.js` — Paper strategy event persistence
 - `lib/taapiClient.js` — TAAPI RSI client (exchange, symbol, interval)
 - `lib/session.js` — Decision session builder and validation
 - `lib/constants.js` — Allowed timeframes and defaults
