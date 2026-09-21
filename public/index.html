@@ -8,8 +8,31 @@
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
+  <header class="top-nav" id="site-nav">
+    <div class="top-nav-inner">
+      <a class="top-nav-brand" href="/" aria-label="Crypto RSI home">
+        <span class="brand-title">Crypto RSI</span>
+        <span class="brand-tag">cryptorsi</span>
+      </a>
+      <nav class="top-nav-actions" id="nav-auth" aria-label="Account">
+        <div id="auth-local-open" class="nav-auth-cluster" hidden>
+          <span class="nav-pill nav-pill-muted">Local file mode</span>
+        </div>
+        <div id="auth-signed-out" class="nav-auth-cluster" hidden>
+          <button type="button" id="clerk-sign-in" class="nav-btn-primary">Sign in</button>
+        </div>
+        <div id="auth-signed-in" class="nav-auth-cluster" hidden>
+          <span class="nav-user" id="clerk-user-email" title="Signed-in account"></span>
+          <span class="nav-wallet-badge" id="wallet-status" hidden></span>
+          <button type="button" id="clerk-connect-wallet" class="nav-btn-secondary" hidden>Connect wallet</button>
+          <button type="button" id="clerk-sign-out" class="nav-btn-ghost">Sign out</button>
+        </div>
+      </nav>
+    </div>
+  </header>
+
   <main class="page">
-    <header>
+    <header class="page-header">
       <h1>Decision session</h1>
       <p class="subtitle">RSI chart and snapshot for a token and timeframe via <code>/api/session</code>.</p>
     </header>
@@ -42,28 +65,14 @@
     <section class="card access-panel" id="auth-panel">
       <h2 class="panel-title">Watchlist &amp; RSI thresholds</h2>
       <p class="hint" id="auth-hint">
-        Session load uses open <code>GET /api/session</code>. Sign in with Clerk to change watchlist or buy/sell thresholds (stored as alert conditions).
+        Session load uses open <code>GET /api/session</code>. Use <strong>Sign in</strong> in the top bar to change watchlist or buy/sell thresholds (stored as alert conditions).
       </p>
-      <div id="auth-signed-out" hidden>
-        <button type="button" id="clerk-sign-in">Sign in (Google or wallet)</button>
-      </div>
-      <div id="auth-signed-in" hidden>
-        <p class="hint">Signed in as <strong id="clerk-user-email"></strong></p>
-        <p class="hint" id="wallet-status" hidden></p>
-        <div class="auth-signed-in-actions">
-          <button type="button" id="clerk-connect-wallet" class="secondary" hidden>Connect Web3 wallet</button>
-          <button type="button" id="clerk-sign-out" class="secondary">Sign out</button>
-        </div>
-      </div>
-      <div id="auth-local-open" hidden>
-        <p class="hint">Clerk is not configured — watchlist and threshold mutations are open in local file mode.</p>
-      </div>
       <div class="watchlist-actions">
         <button type="button" id="watchlist-add" disabled>Add token to watchlist</button>
         <button type="button" id="watchlist-remove" disabled>Remove from watchlist</button>
       </div>
       <p class="hint wallet-gate-hint" id="wallet-gate-hint" hidden>
-        Connect a Web3 wallet in Clerk to set RSI thresholds and view paper strategy signals (no trades are executed).
+        Use <strong>Connect wallet</strong> in the top bar to set RSI thresholds and view paper strategy signals (no trades are executed).
       </p>
       <form id="thresholds-form" class="thresholds-form">
         <p class="hint">Buy when RSI is below the first level; sell when above the second. Saved via <code>POST /api/alerts</code> for this token + timeframe.</p>
