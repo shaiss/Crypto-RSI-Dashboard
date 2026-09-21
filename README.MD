@@ -28,20 +28,23 @@ npm install
 | `WATCHLIST_PATH` | optional | Watchlist JSON path when using file persistence (default `data/watchlist.json`) |
 | `ALERTS_PATH` | optional | Alerts JSON path when using file persistence (default `data/alerts.json`) |
 | `PORT` | local only | HTTP port for `npm start` (default `3000`) |
-| `APP_ACCESS_TOKEN` | Vercel / prod (with DB) | Shared secret for watchlist and alert **mutations** (`POST`/`DELETE`). Set only in Vercel/host env — never commit or embed in the client bundle. |
+| `CLERK_SECRET_KEY` | Vercel / prod (with DB) | Clerk secret for server-side session verification on watchlist and alert routes. |
+| `CLERK_PUBLISHABLE_KEY` | Vercel / prod | Clerk publishable key for the browser (optional alias: `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, which Vercel Clerk Marketplace often sets). |
+| `CLERK_ALLOWLIST_EMAILS` | optional | Comma-separated emails allowed to mutate watchlist/alerts. Default: `shaiss@gmail.com`. |
 
 Without `TAAPI_SECRET`, `/api/session` still responds but returns `rsi: null` and an `errors` entry instead of crashing.
 
-### API access (mutations)
+### API access (Clerk + allowlist)
 
-- `GET` routes (including `/api/session`) stay open for read-only use.
-- When `DATABASE_URL` / `NEON_DATABASE_URL` is active and `USE_FILE_PERSISTENCE` is not set, **database mode** applies: watchlist and alert mutations require `APP_ACCESS_TOKEN` on the server. If it is missing, mutations return **503** (fail closed — no silent open writes).
-- When `APP_ACCESS_TOKEN` is set, clients must send the same value on each mutation via `Authorization: Bearer <token>` or `x-app-access-token: <token>`.
-- **Local file mode** (`USE_FILE_PERSISTENCE=true`, or default local JSON without a DB URL): mutations work without `APP_ACCESS_TOKEN` unless you set one (then the header is required).
+- `GET /api/session` stays open for read-only decision sessions (Pulse v1).
+- `GET` / `POST` / `DELETE` on `/api/watchlist` and `/api/alerts` require a valid **Clerk** session when auth is enforced. The signed-in user’s primary email must appear on the allowlist (`CLERK_ALLOWLIST_EMAILS`, default `shaiss@gmail.com`).
+- When `DATABASE_URL` / `NEON_DATABASE_URL` is active and `USE_FILE_PERSISTENCE` is not set, **database mode** applies: if `CLERK_SECRET_KEY` is missing, those routes return **503** (fail closed).
+- **Local file mode** without `CLERK_SECRET_KEY`: watchlist and alert routes stay open (same as before for local JSON dev). Setting `CLERK_SECRET_KEY` locally enforces Clerk on those routes.
+- API clients send `Authorization: Bearer <clerk_session_jwt>` (the landing UI obtains this via Clerk JS after sign-in).
 
-### Decision UI and mutations
+### Decision UI and sign-in
 
-The landing page loads sessions with an unauthenticated `GET /api/session`. Optional watchlist add/remove buttons send mutations with `x-app-access-token` from a password field you paste once per browser session; the value is stored in **`sessionStorage` only** (not in source code). You can also use `curl` with the same header. Set `APP_ACCESS_TOKEN` in Vercel to match what you paste locally.
+The landing page loads sessions with an unauthenticated `GET /api/session`. Use **Sign in with Clerk** to add or remove watchlist entries; mutations attach the Clerk session token automatically. Ensure your Clerk user’s primary email is on the allowlist. For `curl`, sign in via the UI or Clerk’s dashboard, copy a session JWT, and pass it as `Authorization: Bearer …`.
 
 ### Persistence
 
@@ -65,7 +68,7 @@ Server listens on `http://localhost:3000` (or `PORT` if set).
 ## Deploy on Vercel
 
 1. Import the GitHub repo in Vercel.
-2. Add environment variables: `TAAPI_SECRET`, `DATABASE_URL` (Neon integration or manual connection string), and `APP_ACCESS_TOKEN` (mutation auth).
+2. Add environment variables: `TAAPI_SECRET`, `DATABASE_URL` (Neon integration or manual connection string), `CLERK_SECRET_KEY`, and `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` (or `CLERK_PUBLISHABLE_KEY`). Optionally set `CLERK_ALLOWLIST_EMAILS`.
 3. Deploy — `vercel.json` routes all traffic to the Express app via `api/index.js` (`@vercel/node`).
 
 No domain configuration is required in this repo; attach a custom domain in Vercel when ready.
@@ -234,7 +237,7 @@ Applied at runtime and documented in `migrations/001_init.sql`:
 - `lib/alerts.js` — Alert condition store and session evaluator
 - `lib/db.js` — Neon client and schema bootstrap
 - `lib/persistence.js` — Store backend selection
-- `lib/apiAccess.js` — Mutation auth (`APP_ACCESS_TOKEN`) and DB-mode fail-closed
+- `lib/apiAccess.js` — Clerk session verification, email allowlist, DB-mode fail-closed
 - `lib/taapiClient.js` — TAAPI RSI client (exchange, symbol, interval)
 - `lib/session.js` — Decision session builder and validation
 - `lib/constants.js` — Allowed timeframes and defaults

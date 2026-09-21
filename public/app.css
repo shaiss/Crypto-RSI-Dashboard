@@ -92,6 +92,16 @@ button:hover {
   filter: brightness(1.08);
 }
 
+button.secondary {
+  background: var(--border);
+  color: var(--text);
+}
+
+.panel-title {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
 .status {
   margin-top: 1rem;
   padding: 0.65rem 0.85rem;

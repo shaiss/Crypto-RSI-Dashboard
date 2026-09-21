@@ -5,7 +5,11 @@ const fs = require('fs/promises');
 const os = require('os');
 const path = require('path');
 const { createApp } = require('../index');
-const { createApiAccessMiddleware } = require('../lib/apiAccess');
+const {
+  createClerkAuthMiddleware,
+  getAllowlistEmails,
+  isEmailAllowlisted,
+} = require('../lib/apiAccess');
 
 async function tempWatchlistPath() {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'api-access-watchlist-'));
@@ -17,7 +21,34 @@ async function tempAlertsPath() {
   return path.join(dir, 'alerts.json');
 }
 
-describe('API access control', () => {
+describe('Clerk allowlist helpers', () => {
+  it('defaults to shaiss@gmail.com when CLERK_ALLOWLIST_EMAILS is unset', () => {
+    const previous = process.env.CLERK_ALLOWLIST_EMAILS;
+    delete process.env.CLERK_ALLOWLIST_EMAILS;
+    assert.deepEqual(getAllowlistEmails(), ['shaiss@gmail.com']);
+    if (previous !== undefined) {
+      process.env.CLERK_ALLOWLIST_EMAILS = previous;
+    }
+  });
+
+  it('parses comma-separated CLERK_ALLOWLIST_EMAILS', () => {
+    const previous = process.env.CLERK_ALLOWLIST_EMAILS;
+    process.env.CLERK_ALLOWLIST_EMAILS = ' One@Example.com , two@example.com ';
+    assert.deepEqual(getAllowlistEmails(), ['one@example.com', 'two@example.com']);
+    if (previous === undefined) {
+      delete process.env.CLERK_ALLOWLIST_EMAILS;
+    } else {
+      process.env.CLERK_ALLOWLIST_EMAILS = previous;
+    }
+  });
+
+  it('isEmailAllowlisted is case-insensitive', () => {
+    assert.equal(isEmailAllowlisted('Shaiss@Gmail.com', () => ['shaiss@gmail.com']), true);
+    assert.equal(isEmailAllowlisted('nope@example.com', () => ['shaiss@gmail.com']), false);
+  });
+});
+
+describe('Clerk API access control', () => {
   let server;
   let baseUrl;
 
@@ -38,12 +69,24 @@ describe('API access control', () => {
     baseUrl = `http://127.0.0.1:${port}`;
   }
 
-  it('GET /api/session stays open without APP_ACCESS_TOKEN in file mode', async () => {
+  function clerkMiddleware(overrides = {}) {
+    const allowlist = overrides.allowlist || ['allowed@example.com'];
+    return createClerkAuthMiddleware({
+      getClerkSecretKey: () => overrides.secretKey ?? 'sk_test_mock',
+      getClerkPublishableKey: () => 'pk_test_mock',
+      getAllowlistEmails: () => allowlist.map((e) => e.toLowerCase()),
+      isDatabaseMode: () => overrides.databaseMode ?? false,
+      resolveAuthenticatedEmail: overrides.resolveAuthenticatedEmail
+        || (async () => overrides.email ?? 'allowed@example.com'),
+    });
+  }
+
+  it('GET /api/session stays open without Clerk in file mode', async () => {
     const watchlistPath = await tempWatchlistPath();
     await startServer({
       watchlistPath,
-      apiAccessMiddleware: createApiAccessMiddleware({
-        getAppAccessToken: () => null,
+      apiAccessMiddleware: createClerkAuthMiddleware({
+        getClerkSecretKey: () => null,
         isDatabaseMode: () => false,
       }),
     });
@@ -52,13 +95,12 @@ describe('API access control', () => {
     assert.equal(response.status, 200);
   });
 
-  it('POST /api/watchlist returns 401 without token when APP_ACCESS_TOKEN is set', async () => {
+  it('POST /api/watchlist returns 401 without Clerk session when auth is enforced', async () => {
     const watchlistPath = await tempWatchlistPath();
     await startServer({
       watchlistPath,
-      apiAccessMiddleware: createApiAccessMiddleware({
-        getAppAccessToken: () => 'unit-test-secret',
-        isDatabaseMode: () => false,
+      apiAccessMiddleware: clerkMiddleware({
+        resolveAuthenticatedEmail: async () => null,
       }),
     });
 
@@ -70,21 +112,18 @@ describe('API access control', () => {
     assert.equal(response.status, 401);
   });
 
-  it('POST /api/watchlist succeeds with Bearer token when APP_ACCESS_TOKEN is set', async () => {
+  it('POST /api/watchlist succeeds for allowlisted Clerk user', async () => {
     const watchlistPath = await tempWatchlistPath();
     await startServer({
       watchlistPath,
-      apiAccessMiddleware: createApiAccessMiddleware({
-        getAppAccessToken: () => 'unit-test-secret',
-        isDatabaseMode: () => false,
-      }),
+      apiAccessMiddleware: clerkMiddleware({ email: 'allowed@example.com' }),
     });
 
     const response = await fetch(`${baseUrl}/api/watchlist`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: 'Bearer unit-test-secret',
+        Authorization: 'Bearer mock-session-jwt',
       },
       body: JSON.stringify({ token: 'BTC' }),
     });
@@ -93,29 +132,38 @@ describe('API access control', () => {
     assert.equal(body.token, 'BTC');
   });
 
-  it('DELETE /api/alerts/:id returns 401 with wrong x-app-access-token', async () => {
+  it('GET /api/watchlist returns 403 when signed-in email is not allowlisted', async () => {
+    const watchlistPath = await tempWatchlistPath();
+    await startServer({
+      watchlistPath,
+      apiAccessMiddleware: clerkMiddleware({ email: 'other@example.com' }),
+    });
+
+    const response = await fetch(`${baseUrl}/api/watchlist`);
+    assert.equal(response.status, 403);
+  });
+
+  it('DELETE /api/alerts/:id returns 401 without session when auth is enforced', async () => {
     const alertsPath = await tempAlertsPath();
     await startServer({
       alertsPath,
-      apiAccessMiddleware: createApiAccessMiddleware({
-        getAppAccessToken: () => 'alert-secret',
-        isDatabaseMode: () => false,
+      apiAccessMiddleware: clerkMiddleware({
+        resolveAuthenticatedEmail: async () => null,
       }),
     });
 
     const response = await fetch(`${baseUrl}/api/alerts/00000000-0000-4000-8000-000000000001`, {
       method: 'DELETE',
-      headers: { 'x-app-access-token': 'wrong' },
     });
     assert.equal(response.status, 401);
   });
 
-  it('POST /api/watchlist returns 503 in database mode without APP_ACCESS_TOKEN', async () => {
+  it('POST /api/watchlist returns 503 in database mode without CLERK_SECRET_KEY', async () => {
     const watchlistPath = await tempWatchlistPath();
     await startServer({
       watchlistPath,
-      apiAccessMiddleware: createApiAccessMiddleware({
-        getAppAccessToken: () => null,
+      apiAccessMiddleware: createClerkAuthMiddleware({
+        getClerkSecretKey: () => null,
         isDatabaseMode: () => true,
       }),
     });
@@ -126,5 +174,15 @@ describe('API access control', () => {
       body: JSON.stringify({ token: 'BTC' }),
     });
     assert.equal(response.status, 503);
+  });
+
+  it('GET /api/auth/config returns Clerk client config shape', async () => {
+    const watchlistPath = await tempWatchlistPath();
+    await startServer({ watchlistPath });
+    const response = await fetch(`${baseUrl}/api/auth/config`);
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.ok('publishableKey' in body);
+    assert.ok('clerkEnabled' in body);
   });
 });
