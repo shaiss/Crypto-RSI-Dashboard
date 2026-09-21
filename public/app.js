@@ -22,6 +22,7 @@ const clerkSignOutBtn = document.getElementById('clerk-sign-out');
 const clerkUserEmailEl = document.getElementById('clerk-user-email');
 const walletStatusEl = document.getElementById('wallet-status');
 const walletGateHintEl = document.getElementById('wallet-gate-hint');
+const authHintEl = document.getElementById('auth-hint');
 const strategyTimelineEl = document.getElementById('strategy-timeline');
 const strategyEventsListEl = document.getElementById('strategy-events-list');
 
@@ -308,6 +309,13 @@ function updateMutationButtons(token) {
   }
 }
 
+function setAuthHint(html) {
+  if (!authHintEl) {
+    return;
+  }
+  authHintEl.innerHTML = html;
+}
+
 function updateAuthUi() {
   if (authLocalOpen) {
     authLocalOpen.hidden = clerkRequired;
@@ -315,6 +323,9 @@ function updateAuthUi() {
   if (!clerkRequired) {
     if (authSignedOut) authSignedOut.hidden = true;
     if (authSignedIn) authSignedIn.hidden = true;
+    setAuthHint(
+      'Session load uses open <code>GET /api/session</code>. Clerk is not configured — watchlist and threshold mutations are open in local file mode.',
+    );
     updateMutationButtons(String(new FormData(form).get('token') || '').trim());
     return;
   }
@@ -331,13 +342,27 @@ function updateAuthUi() {
   if (walletStatusEl) {
     if (user && meProfile.walletConnected) {
       walletStatusEl.hidden = false;
-      walletStatusEl.textContent = `Wallet ${meProfile.walletAddressTruncated || 'connected'} (UI gate for paper strategy — no trading).`;
-    } else if (user) {
-      walletStatusEl.hidden = false;
-      walletStatusEl.textContent = 'No Web3 wallet linked in Clerk. Use “Connect Web3 wallet” after Google sign-in to unlock paper threshold controls.';
+      walletStatusEl.textContent = meProfile.walletAddressTruncated
+        ? `Wallet ${meProfile.walletAddressTruncated}`
+        : 'Wallet connected';
+      walletStatusEl.title = 'Web3 wallet linked in Clerk (paper strategy UI gate — no trading)';
     } else {
       walletStatusEl.hidden = true;
+      walletStatusEl.removeAttribute('title');
     }
+  }
+  if (!user) {
+    setAuthHint(
+      'Session load uses open <code>GET /api/session</code>. Use <strong>Sign in</strong> in the top bar to change watchlist or buy/sell thresholds (stored as alert conditions).',
+    );
+  } else if (!meProfile.walletConnected) {
+    setAuthHint(
+      'Signed in. Use <strong>Connect wallet</strong> in the top bar to save RSI thresholds and view paper strategy signals (no trades are executed).',
+    );
+  } else {
+    setAuthHint(
+      'Watchlist and threshold controls are enabled for your signed-in account. Session load remains open via <code>GET /api/session</code>.',
+    );
   }
   updateMutationButtons(String(new FormData(form).get('token') || '').trim());
 }
