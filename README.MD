@@ -37,7 +37,7 @@ Without `TAAPI_SECRET`, `/api/session` still responds but returns `rsi: null` an
 ### API access (Clerk + allowlist)
 
 - `GET /api/session` stays open for read-only decision sessions (Pulse v1).
-- `GET` / `POST` / `DELETE` on `/api/watchlist` and `/api/alerts` require a valid **Clerk** session when auth is enforced. The signed-in user’s primary email must appear in `CLERK_ALLOWLIST_EMAILS`.
+- `GET` / `POST` / `DELETE` on `/api/watchlist` and `/api/alerts` require a valid **Clerk** session when auth is enforced (not only mutations). The signed-in user’s primary email must appear in `CLERK_ALLOWLIST_EMAILS`.
 - When `DATABASE_URL` / `NEON_DATABASE_URL` is active and `USE_FILE_PERSISTENCE` is not set, **database mode** applies: if `CLERK_SECRET_KEY` or a non-empty `CLERK_ALLOWLIST_EMAILS` is missing, those routes return **503** (fail closed).
 - **Local file mode** without `CLERK_SECRET_KEY`: watchlist and alert routes stay open (same as before for local JSON dev). Setting `CLERK_SECRET_KEY` locally enforces Clerk on those routes.
 - API clients send `Authorization: Bearer <clerk_session_jwt>` (the landing UI obtains this via Clerk JS after sign-in).
@@ -69,7 +69,7 @@ Server listens on `http://localhost:3000` (or `PORT` if set).
 
 1. Import the GitHub repo in Vercel.
 2. Add environment variables: `TAAPI_SECRET`, `DATABASE_URL` (Neon integration or manual connection string), `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY` (or `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` as fallback), and **`CLERK_ALLOWLIST_EMAILS`** (comma-separated allowlisted emails — configure in the Vercel dashboard, not in this repo).
-3. Deploy — `vercel.json` routes all traffic to the Express app via `api/index.js` (`@vercel/node`).
+3. Deploy — `vercel.json` routes all traffic to the Express app via `api/index.js` (`@vercel/node`). After merging Clerk or API route changes, trigger a **production redeploy** so `GET /api/auth/config` and allowlisted GET routes match `main`.
 
 No domain configuration is required in this repo; attach a custom domain in Vercel when ready.
 

@@ -7,6 +7,7 @@ const {
   createClerkAuthMiddleware,
   getClerkPublishableKey,
 } = require('./lib/apiAccess');
+const { restorePublicUrlMiddleware } = require('./lib/vercelRequest');
 
 function createApp(options = {}) {
   const app = express();
@@ -14,8 +15,8 @@ function createApp(options = {}) {
   const alerts = options.alertsStore || createAlertsStore(options.alertsPath);
 
   app.use(express.json());
+  app.use(options.vercelRequestMiddleware || restorePublicUrlMiddleware);
   app.use(options.apiAccessMiddleware || createClerkAuthMiddleware());
-  app.use(express.static('public'));
 
   app.get('/api/auth/config', (req, res) => {
     const publishableKey = getClerkPublishableKey();
@@ -23,10 +24,6 @@ function createApp(options = {}) {
       publishableKey,
       clerkEnabled: Boolean(publishableKey),
     });
-  });
-
-  app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
   });
 
   app.get('/api/watchlist', async (req, res) => {
@@ -46,6 +43,18 @@ function createApp(options = {}) {
         return res.status(result.status).json({ error: result.error });
       }
       return res.status(201).json({ token: result.token, tokens: result.tokens });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.delete('/api/watchlist/:token', async (req, res) => {
+    try {
+      const result = await watchlist.remove(req.params.token);
+      if (!result.ok) {
+        return res.status(result.status).json({ error: result.error });
+      }
+      return res.json({ removed: result.removed, tokens: result.tokens });
     } catch (err) {
       return res.status(500).json({ error: err.message });
     }
@@ -104,18 +113,6 @@ function createApp(options = {}) {
     }
   });
 
-  app.delete('/api/watchlist/:token', async (req, res) => {
-    try {
-      const result = await watchlist.remove(req.params.token);
-      if (!result.ok) {
-        return res.status(result.status).json({ error: result.error });
-      }
-      return res.json({ removed: result.removed, tokens: result.tokens });
-    } catch (err) {
-      return res.status(500).json({ error: err.message });
-    }
-  });
-
   app.get('/api/session', async (req, res) => {
     const { token, timeframe, exchange } = req.query;
     let onWatchlist = false;
@@ -138,6 +135,12 @@ function createApp(options = {}) {
     }
 
     return res.json(result.session);
+  });
+
+  app.use(express.static('public'));
+
+  app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
   });
 
   return app;
