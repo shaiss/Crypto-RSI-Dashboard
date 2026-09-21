@@ -1,6 +1,6 @@
 # Crypto RSI Dashboard
 
-DeFi decision tool for inspecting token RSI across supported timeframes. The default UI at `/` loads a decision session (token, timeframe, optional exchange) from `/api/session`. The legacy bubble heatmap remains under `/legacy/heatmap.html` for reference only.
+DeFi decision tool for inspecting token RSI across supported timeframes. The default UI at `/` loads a decision session (token, timeframe, optional exchange) from `/api/session`, renders an **RSI line chart** (Plotly via CDN), and supports **buy-below / sell-above** thresholds stored as alert conditions. The legacy bubble heatmap remains under `/legacy/heatmap.html` for reference only.
 
 ## Prerequisites
 
@@ -44,7 +44,7 @@ Without `TAAPI_SECRET`, `/api/session` still responds but returns `rsi: null` an
 
 ### Decision UI and sign-in
 
-The landing page loads sessions with an unauthenticated `GET /api/session`. Use **Sign in with Clerk** to add or remove watchlist entries; mutations attach the Clerk session token automatically. Ensure your Clerk user’s primary email is on the allowlist. For `curl`, sign in via the UI or Clerk’s dashboard, copy a session JWT, and pass it as `Authorization: Bearer …`.
+The landing page loads sessions with an unauthenticated `GET /api/session`. Pick a suggested L1 token chip or enter any symbol, then view the Plotly RSI series for that timeframe. **Buy below** / **sell above** fields save per token+timeframe rules through `POST /api/alerts` (stored as `<` and `>` alert conditions; session `alert.status` reflects active/recent firings on reload). Use **Sign in with Clerk** to add or remove watchlist entries or change thresholds; mutations attach the Clerk session token automatically. Ensure your Clerk user’s primary email is on the allowlist. For `curl`, sign in via the UI or Clerk’s dashboard, copy a session JWT, and pass it as `Authorization: Bearer …`.
 
 ### Persistence
 
@@ -103,10 +103,17 @@ curl "http://localhost:3000/api/session?token=BTC&timeframe=1h"
   "timeframe": "1h",
   "rsi": 52.3,
   "rsiAsOf": "2024-11-14T12:00:00.000Z",
+  "rsiSeries": [
+    { "value": 51.1, "time": "2024-11-14T10:00:00.000Z" },
+    { "value": 52.3, "time": "2024-11-14T12:00:00.000Z" }
+  ],
+  "thresholds": { "buyBelow": 30, "sellAbove": 70, "buyConditionId": "…", "sellConditionId": "…" },
   "onWatchlist": false,
   "alert": { "status": "none" }
 }
 ```
+
+`rsiSeries` is oldest → newest (one TAAPI call with `results`, default 60 candles). `thresholds` summarizes stored buy/sell alert rules for the requested token and timeframe.
 
 `alert.status` is evaluated on each session fetch (no background polling):
 
@@ -188,7 +195,19 @@ curl "http://localhost:3000/api/alerts"
 
 #### `POST /api/alerts`
 
-Create a condition. Body JSON: `token`, `timeframe`, `op`, `threshold`.
+Create a condition, or set **buy-below / sell-above** thresholds for a token+timeframe.
+
+**Single condition:** body JSON `token`, `timeframe`, `op`, `threshold`.
+
+**Thresholds shortcut:** include `buyBelow` and/or `sellAbove` (numbers). Omit or send `null` to clear that side. Replaces any existing buy (`<`, `<=`) or sell (`>`, `>=`) rules for the same token and timeframe. Response includes `thresholds` and full `conditions` list (HTTP 200).
+
+```sh
+curl -X POST "http://localhost:3000/api/alerts" \
+  -H "Content-Type: application/json" \
+  -d '{"token":"BTC","timeframe":"1h","buyBelow":30,"sellAbove":70}'
+```
+
+**Classic condition example:**
 
 ```sh
 curl -X POST "http://localhost:3000/api/alerts" \

@@ -61,7 +61,26 @@ function createApp(options = {}) {
   });
 
   app.post('/api/alerts', async (req, res) => {
-    const { token, timeframe, op, threshold } = req.body ?? {};
+    const { token, timeframe, op, threshold, buyBelow, sellAbove } = req.body ?? {};
+    if (buyBelow != null || sellAbove != null) {
+      try {
+        const result = await alerts.setThresholds({
+          token,
+          timeframe,
+          buyBelow,
+          sellAbove,
+        });
+        if (!result.ok) {
+          return res.status(result.status).json({ error: result.error });
+        }
+        return res.status(200).json({
+          thresholds: result.thresholds,
+          conditions: result.conditions,
+        });
+      } catch (err) {
+        return res.status(500).json({ error: err.message });
+      }
+    }
     try {
       const result = await alerts.add({ token, timeframe, op, threshold });
       if (!result.ok) {
