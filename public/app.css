@@ -170,6 +170,17 @@ dd.alert-recent {
   font-size: 0.85rem;
 }
 
+.auth-signed-in-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+}
+
+.auth-signed-in-actions button {
+  margin-top: 0;
+}
+
 .watchlist-actions {
   display: flex;
   flex-wrap: wrap;
@@ -238,6 +249,36 @@ dd.alert-recent {
   margin: 0;
   color: var(--muted);
   font-size: 0.9rem;
+}
+
+.strategy-timeline {
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.strategy-events-list {
+  margin: 0.5rem 0 0;
+  padding-left: 1.25rem;
+  font-size: 0.9rem;
+}
+
+.strategy-events-list li {
+  margin-bottom: 0.35rem;
+}
+
+.strategy-events-list .side-buy {
+  color: var(--ok);
+}
+
+.strategy-events-list .side-sell {
+  color: var(--warn);
+}
+
+.wallet-gate-hint {
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px dashed var(--border);
 }
 
 footer {

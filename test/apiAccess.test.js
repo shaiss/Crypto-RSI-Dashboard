@@ -74,13 +74,31 @@ describe('Clerk API access control', () => {
 
   function clerkMiddleware(overrides = {}) {
     const allowlist = overrides.allowlist || ['admin@example.com'];
+    const email = overrides.email ?? 'admin@example.com';
     return createClerkAuthMiddleware({
       getClerkSecretKey: () => overrides.secretKey ?? 'sk_test_mock',
       getClerkPublishableKey: () => 'pk_test_mock',
       getAllowlistEmails: () => allowlist.map((e) => e.toLowerCase()),
       isDatabaseMode: () => overrides.databaseMode ?? false,
       resolveAuthenticatedEmail: overrides.resolveAuthenticatedEmail
-        || (async () => overrides.email ?? 'admin@example.com'),
+        || (async () => email),
+      resolveAuthenticatedContext: overrides.resolveAuthenticatedContext
+        || (async () => {
+          const resolvedEmail = overrides.resolveAuthenticatedEmail
+            ? await overrides.resolveAuthenticatedEmail({})
+            : email;
+          if (!resolvedEmail) {
+            return null;
+          }
+          return {
+            userId: 'test-user',
+            email: resolvedEmail,
+            emailNormalized: String(resolvedEmail).trim().toLowerCase(),
+            walletConnected: overrides.walletConnected ?? false,
+            walletAddress: overrides.walletAddress ?? null,
+            walletAddressTruncated: overrides.walletAddressTruncated ?? null,
+          };
+        }),
     });
   }
 
@@ -224,6 +242,21 @@ describe('Clerk API access control', () => {
     assert.equal(response.status, 503);
     const body = await response.json();
     assert.match(body.error, /CLERK_ALLOWLIST_EMAILS/);
+  });
+
+  it('GET /api/strategy/events succeeds for allowlisted Clerk user (wallet optional)', async () => {
+    const watchlistPath = await tempWatchlistPath();
+    await startServer({
+      watchlistPath,
+      apiAccessMiddleware: clerkMiddleware({ walletConnected: false }),
+    });
+
+    const response = await fetch(`${baseUrl}/api/strategy/events`, {
+      headers: { Authorization: 'Bearer mock-session-jwt' },
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.ok(Array.isArray(body.events));
   });
 
   it('GET /api/auth/config returns Clerk client config shape', async () => {
