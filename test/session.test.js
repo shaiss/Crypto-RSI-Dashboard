@@ -44,11 +44,13 @@ describe('buildDecisionSession', () => {
     assert.equal(session.timeframe, '1h');
     assert.equal(session.rsi, 55.1);
     const { DEFAULT_RSI_CHART_RESULTS } = require('../lib/constants');
-    const latestTs = 1700000000 + DEFAULT_RSI_CHART_RESULTS - 1;
+    const { clampResults } = require('../lib/taapiClient');
+    const chartResults = clampResults(DEFAULT_RSI_CHART_RESULTS);
+    const latestTs = 1700000000 + chartResults - 1;
     assert.equal(session.rsiAsOf, new Date(latestTs * 1000).toISOString());
     assert.equal(session.onWatchlist, false);
     assert.deepEqual(session.alert, { status: 'none' });
-    assert.equal(session.rsiSeries.length, DEFAULT_RSI_CHART_RESULTS);
+    assert.equal(session.rsiSeries.length, chartResults);
     assert.equal(session.rsiSeries[session.rsiSeries.length - 1].value, 55.1);
     assert.deepEqual(session.thresholds, {
       buyBelow: null,

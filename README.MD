@@ -27,7 +27,8 @@ npm install
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `TAAPI_SECRET` | recommended | TAAPI API secret for live RSI (never commit) |
+| `TAAPI_SECRET` | recommended | TAAPI API key for live RSI (Bearer on v2; never commit) |
+| `TAAPI_PLAN` | optional | Plan cap for chart history: `basic` (50 candles, default), `pro` (300), or `expert` (2000) |
 | `DATABASE_URL` | Vercel / prod | Neon Postgres connection string (preferred) |
 | `NEON_DATABASE_URL` | alternative | Same as `DATABASE_URL` if your Neon integration uses this name |
 | `USE_FILE_PERSISTENCE` | local only | Set to `true` to use JSON files instead of Postgres when no DB URL is set |
@@ -123,7 +124,7 @@ curl "http://localhost:3000/api/session?token=BTC&timeframe=1h"
 }
 ```
 
-`rsiSeries` is oldest → newest (one TAAPI `GET /rsi` call with `results=60` by default — about 60 candles of the selected interval, e.g. 60 hours on `1h`). `thresholds` summarizes stored buy/sell alert rules for the requested token and timeframe.
+`rsiSeries` is oldest → newest (one TAAPI v2 `GET /indicator/rsi` call with `results` — 60 requested by default, clamped to your plan: Basic 50, Pro 300, Expert 2000 candles of the selected interval, e.g. 50 hours on `1h` for Basic). `thresholds` summarizes stored buy/sell alert rules for the requested token and timeframe.
 
 When the request includes a valid allowlisted Clerk session with a connected Web3 wallet, the response also includes `paperStrategy.recentEvents` (timeline) and may append new rows to `strategy_events` when RSI crosses thresholds (idempotent: one open signal per token/timeframe/side until RSI clears the band).
 
@@ -309,7 +310,7 @@ Applied at runtime and documented in `migrations/001_init.sql`:
 - `lib/wallet.js` — Clerk Web3 wallet address extraction
 - `lib/strategySignals.js` — RSI threshold signal evaluation
 - `lib/strategyEvents.js` — Paper strategy event persistence
-- `lib/taapiClient.js` — TAAPI RSI client (exchange, symbol, interval)
+- `lib/taapiClient.js` — TAAPI v2 RSI history client (v1 fallback; plan-aware `results` clamp)
 - `lib/session.js` — Decision session builder and validation
 - `lib/constants.js` — Allowed timeframes and defaults
 - `public/index.html` — Decision session landing UI
