@@ -1,0 +1,182 @@
+:root {
+  color-scheme: dark light;
+  --bg: #0f1419;
+  --card: #1a2332;
+  --text: #e7ecf3;
+  --muted: #9aa7b8;
+  --accent: #3d9cf5;
+  --border: #2a3544;
+  --ok: #3dd68c;
+  --warn: #f5b83d;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.page {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+}
+
+h1 {
+  margin: 0 0 0.25rem;
+  font-size: 1.5rem;
+}
+
+.subtitle {
+  margin: 0 0 1.25rem;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  padding: 1rem 1.25rem;
+}
+
+form.card {
+  display: grid;
+  gap: 0.75rem;
+}
+
+label {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+}
+
+.optional {
+  color: var(--muted);
+  font-weight: normal;
+}
+
+input,
+select,
+button {
+  font: inherit;
+}
+
+input,
+select {
+  padding: 0.5rem 0.65rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+}
+
+button {
+  margin-top: 0.25rem;
+  padding: 0.55rem 1rem;
+  border: none;
+  border-radius: 0.5rem;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+button:hover {
+  filter: brightness(1.08);
+}
+
+.status {
+  margin-top: 1rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.status.error {
+  background: #3a1f24;
+  border: 1px solid #6b2d38;
+}
+
+.status.loading {
+  color: var(--muted);
+}
+
+.result {
+  margin-top: 1rem;
+}
+
+dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.35rem 1rem;
+  font-size: 0.95rem;
+}
+
+dt {
+  color: var(--muted);
+}
+
+dd {
+  margin: 0;
+}
+
+dd.alert-active {
+  color: var(--warn);
+}
+
+dd.alert-recent {
+  color: var(--ok);
+}
+
+.json {
+  margin: 1rem 0 0;
+  padding: 0.75rem;
+  background: var(--bg);
+  border-radius: 0.5rem;
+  font-size: 0.8rem;
+  overflow-x: auto;
+}
+
+.access-panel {
+  margin-top: 1rem;
+}
+
+.access-panel summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.hint {
+  margin: 0.75rem 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.watchlist-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.watchlist-actions button {
+  margin-top: 0;
+  background: var(--border);
+}
+
+footer {
+  margin-top: 2rem;
+  font-size: 0.85rem;
+}
+
+footer a {
+  color: var(--muted);
+}

@@ -2,15 +2,65 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Token Heatmap</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@1.0.2"></script>
-  <link rel="stylesheet" href="/style.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Crypto RSI — Decision Session</title>
+  <link rel="stylesheet" href="/app.css">
 </head>
 <body>
-  <div id="heatmap-container">
-    <canvas id="heatmapCanvas"></canvas>
-  </div>
-  <script src="/main.js"></script>
+  <main class="page">
+    <header>
+      <h1>Decision session</h1>
+      <p class="subtitle">RSI snapshot for a token and timeframe via <code>/api/session</code>.</p>
+    </header>
+
+    <form id="session-form" class="card">
+      <label>
+        Token
+        <input name="token" type="text" placeholder="BTC" required autocomplete="off">
+      </label>
+      <label>
+        Timeframe
+        <select name="timeframe" required>
+          <option value="15m">15m</option>
+          <option value="1h" selected>1h</option>
+          <option value="4h">4h</option>
+          <option value="1d">1d</option>
+        </select>
+      </label>
+      <label>
+        Exchange <span class="optional">(optional)</span>
+        <input name="exchange" type="text" placeholder="binance" autocomplete="off">
+      </label>
+      <button type="submit">Load session</button>
+    </form>
+
+    <details class="card access-panel">
+      <summary>Watchlist mutations (optional)</summary>
+      <p class="hint">
+        Session load uses open <code>GET /api/session</code>. To add or remove watchlist entries from the browser,
+        paste the same <code>APP_ACCESS_TOKEN</code> value configured on the server (stored only in
+        <code>sessionStorage</code> on this device — never embedded in the app).
+      </p>
+      <label>
+        Access token
+        <input id="access-token" type="password" autocomplete="off" placeholder="Paste server token">
+      </label>
+      <div class="watchlist-actions">
+        <button type="button" id="watchlist-add" disabled>Add token to watchlist</button>
+        <button type="button" id="watchlist-remove" disabled>Remove from watchlist</button>
+      </div>
+    </details>
+
+    <section id="status" class="status" hidden></section>
+    <section id="result" class="card result" hidden>
+      <dl id="session-fields"></dl>
+      <pre id="session-json" class="json"></pre>
+    </section>
+
+    <footer>
+      <a href="/legacy/heatmap.html">Legacy token heatmap (archived)</a>
+    </footer>
+  </main>
+  <script src="/app.js"></script>
 </body>
 </html>

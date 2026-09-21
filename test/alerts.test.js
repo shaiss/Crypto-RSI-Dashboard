@@ -209,6 +209,16 @@ describe('alerts HTTP API and session.alert', () => {
     assert.deepEqual(body.conditions, []);
   });
 
+  it('DELETE /api/alerts/:id rejects non-UUID id', async () => {
+    const alertsPath = await tempAlertsPath();
+    await startServer(alertsPath);
+
+    const response = await fetch(`${baseUrl}/api/alerts/not-a-uuid`, { method: 'DELETE' });
+    assert.equal(response.status, 400);
+    const body = await response.json();
+    assert.match(body.error, /UUID/i);
+  });
+
   it('POST /api/alerts rejects invalid payload', async () => {
     const alertsPath = await tempAlertsPath();
     await startServer(alertsPath);

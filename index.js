@@ -3,6 +3,7 @@ const path = require('path');
 const { buildDecisionSession } = require('./lib/session');
 const { createWatchlistStore } = require('./lib/watchlist');
 const { createAlertsStore } = require('./lib/alerts');
+const { createApiAccessMiddleware } = require('./lib/apiAccess');
 
 function createApp(options = {}) {
   const app = express();
@@ -10,6 +11,7 @@ function createApp(options = {}) {
   const alerts = options.alertsStore || createAlertsStore(options.alertsPath);
 
   app.use(express.json());
+  app.use(options.apiAccessMiddleware || createApiAccessMiddleware());
   app.use(express.static('public'));
 
   app.get('/', (req, res) => {
