@@ -8,6 +8,8 @@
     "test": "node --test test/**/*.test.js"
   },
   "dependencies": {
+    "@clerk/backend": "^3.18.1",
+    "@clerk/express": "^2.1.69",
     "@neondatabase/serverless": "^0.10.4",
     "axios": "^0.21.1",
     "config.json": "^0.0.4",

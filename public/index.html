@@ -34,22 +34,26 @@
       <button type="submit">Load session</button>
     </form>
 
-    <details class="card access-panel">
-      <summary>Watchlist mutations (optional)</summary>
-      <p class="hint">
-        Session load uses open <code>GET /api/session</code>. To add or remove watchlist entries from the browser,
-        paste the same <code>APP_ACCESS_TOKEN</code> value configured on the server (stored only in
-        <code>sessionStorage</code> on this device — never embedded in the app).
+    <section class="card access-panel" id="auth-panel">
+      <h2 class="panel-title">Watchlist mutations</h2>
+      <p class="hint" id="auth-hint">
+        Session load uses open <code>GET /api/session</code>. Sign in with Clerk to add or remove watchlist entries.
       </p>
-      <label>
-        Access token
-        <input id="access-token" type="password" autocomplete="off" placeholder="Paste server token">
-      </label>
+      <div id="auth-signed-out" hidden>
+        <button type="button" id="clerk-sign-in">Sign in with Clerk</button>
+      </div>
+      <div id="auth-signed-in" hidden>
+        <p class="hint">Signed in as <strong id="clerk-user-email"></strong></p>
+        <button type="button" id="clerk-sign-out" class="secondary">Sign out</button>
+      </div>
+      <div id="auth-local-open" hidden>
+        <p class="hint">Clerk is not configured — watchlist mutations are open in local file mode.</p>
+      </div>
       <div class="watchlist-actions">
         <button type="button" id="watchlist-add" disabled>Add token to watchlist</button>
         <button type="button" id="watchlist-remove" disabled>Remove from watchlist</button>
       </div>
-    </details>
+    </section>
 
     <section id="status" class="status" hidden></section>
     <section id="result" class="card result" hidden>

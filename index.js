@@ -3,7 +3,10 @@ const path = require('path');
 const { buildDecisionSession } = require('./lib/session');
 const { createWatchlistStore } = require('./lib/watchlist');
 const { createAlertsStore } = require('./lib/alerts');
-const { createApiAccessMiddleware } = require('./lib/apiAccess');
+const {
+  createClerkAuthMiddleware,
+  getClerkPublishableKey,
+} = require('./lib/apiAccess');
 
 function createApp(options = {}) {
   const app = express();
@@ -11,8 +14,16 @@ function createApp(options = {}) {
   const alerts = options.alertsStore || createAlertsStore(options.alertsPath);
 
   app.use(express.json());
-  app.use(options.apiAccessMiddleware || createApiAccessMiddleware());
+  app.use(options.apiAccessMiddleware || createClerkAuthMiddleware());
   app.use(express.static('public'));
+
+  app.get('/api/auth/config', (req, res) => {
+    const publishableKey = getClerkPublishableKey();
+    return res.json({
+      publishableKey,
+      clerkEnabled: Boolean(publishableKey),
+    });
+  });
 
   app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
