@@ -30,15 +30,15 @@ npm install
 | `PORT` | local only | HTTP port for `npm start` (default `3000`) |
 | `CLERK_SECRET_KEY` | Vercel / prod (with DB) | Clerk secret for server-side session verification on watchlist and alert routes. |
 | `CLERK_PUBLISHABLE_KEY` | Vercel / prod | Clerk publishable key for the browser (preferred; set on Vercel prod+preview). Falls back to `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` when unset. |
-| `CLERK_ALLOWLIST_EMAILS` | optional | Comma-separated emails allowed to mutate watchlist/alerts. Default: `shaiss@gmail.com`. |
+| `CLERK_ALLOWLIST_EMAILS` | Vercel / prod (with DB) | Comma-separated Clerk primary emails allowed on watchlist/alert routes (e.g. `admin@example.com`). **Required** when Clerk auth is enforced; if unset or empty, protected routes return **503** (fail closed). Set only in Vercel/host env — never commit real addresses. |
 
 Without `TAAPI_SECRET`, `/api/session` still responds but returns `rsi: null` and an `errors` entry instead of crashing.
 
 ### API access (Clerk + allowlist)
 
 - `GET /api/session` stays open for read-only decision sessions (Pulse v1).
-- `GET` / `POST` / `DELETE` on `/api/watchlist` and `/api/alerts` require a valid **Clerk** session when auth is enforced. The signed-in user’s primary email must appear on the allowlist (`CLERK_ALLOWLIST_EMAILS`, default `shaiss@gmail.com`).
-- When `DATABASE_URL` / `NEON_DATABASE_URL` is active and `USE_FILE_PERSISTENCE` is not set, **database mode** applies: if `CLERK_SECRET_KEY` is missing, those routes return **503** (fail closed).
+- `GET` / `POST` / `DELETE` on `/api/watchlist` and `/api/alerts` require a valid **Clerk** session when auth is enforced. The signed-in user’s primary email must appear in `CLERK_ALLOWLIST_EMAILS`.
+- When `DATABASE_URL` / `NEON_DATABASE_URL` is active and `USE_FILE_PERSISTENCE` is not set, **database mode** applies: if `CLERK_SECRET_KEY` or a non-empty `CLERK_ALLOWLIST_EMAILS` is missing, those routes return **503** (fail closed).
 - **Local file mode** without `CLERK_SECRET_KEY`: watchlist and alert routes stay open (same as before for local JSON dev). Setting `CLERK_SECRET_KEY` locally enforces Clerk on those routes.
 - API clients send `Authorization: Bearer <clerk_session_jwt>` (the landing UI obtains this via Clerk JS after sign-in).
 
@@ -68,7 +68,7 @@ Server listens on `http://localhost:3000` (or `PORT` if set).
 ## Deploy on Vercel
 
 1. Import the GitHub repo in Vercel.
-2. Add environment variables: `TAAPI_SECRET`, `DATABASE_URL` (Neon integration or manual connection string), `CLERK_SECRET_KEY`, and `CLERK_PUBLISHABLE_KEY` (or `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` as fallback). Optionally set `CLERK_ALLOWLIST_EMAILS`.
+2. Add environment variables: `TAAPI_SECRET`, `DATABASE_URL` (Neon integration or manual connection string), `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY` (or `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` as fallback), and **`CLERK_ALLOWLIST_EMAILS`** (comma-separated allowlisted emails — configure in the Vercel dashboard, not in this repo).
 3. Deploy — `vercel.json` routes all traffic to the Express app via `api/index.js` (`@vercel/node`).
 
 No domain configuration is required in this repo; attach a custom domain in Vercel when ready.
@@ -257,4 +257,4 @@ MIT — see `LICENSE`.
 
 ## Contact
 
-shai@kalmansforge.com
+Open an issue on [GitHub](https://github.com/shaiss/Crypto-RSI-Dashboard/issues).

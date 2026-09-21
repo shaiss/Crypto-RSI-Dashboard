@@ -8,6 +8,7 @@ const { createApp } = require('../index');
 const {
   createClerkAuthMiddleware,
   getAllowlistEmails,
+  isAllowlistConfigured,
   isEmailAllowlisted,
 } = require('../lib/apiAccess');
 
@@ -22,10 +23,11 @@ async function tempAlertsPath() {
 }
 
 describe('Clerk allowlist helpers', () => {
-  it('defaults to shaiss@gmail.com when CLERK_ALLOWLIST_EMAILS is unset', () => {
+  it('returns empty list when CLERK_ALLOWLIST_EMAILS is unset', () => {
     const previous = process.env.CLERK_ALLOWLIST_EMAILS;
     delete process.env.CLERK_ALLOWLIST_EMAILS;
-    assert.deepEqual(getAllowlistEmails(), ['shaiss@gmail.com']);
+    assert.deepEqual(getAllowlistEmails(), []);
+    assert.equal(isAllowlistConfigured(), false);
     if (previous !== undefined) {
       process.env.CLERK_ALLOWLIST_EMAILS = previous;
     }
@@ -35,6 +37,7 @@ describe('Clerk allowlist helpers', () => {
     const previous = process.env.CLERK_ALLOWLIST_EMAILS;
     process.env.CLERK_ALLOWLIST_EMAILS = ' One@Example.com , two@example.com ';
     assert.deepEqual(getAllowlistEmails(), ['one@example.com', 'two@example.com']);
+    assert.equal(isAllowlistConfigured(), true);
     if (previous === undefined) {
       delete process.env.CLERK_ALLOWLIST_EMAILS;
     } else {
@@ -43,8 +46,8 @@ describe('Clerk allowlist helpers', () => {
   });
 
   it('isEmailAllowlisted is case-insensitive', () => {
-    assert.equal(isEmailAllowlisted('Shaiss@Gmail.com', () => ['shaiss@gmail.com']), true);
-    assert.equal(isEmailAllowlisted('nope@example.com', () => ['shaiss@gmail.com']), false);
+    assert.equal(isEmailAllowlisted('Admin@Example.com', () => ['admin@example.com']), true);
+    assert.equal(isEmailAllowlisted('nope@example.com', () => ['admin@example.com']), false);
   });
 });
 
@@ -70,14 +73,14 @@ describe('Clerk API access control', () => {
   }
 
   function clerkMiddleware(overrides = {}) {
-    const allowlist = overrides.allowlist || ['allowed@example.com'];
+    const allowlist = overrides.allowlist || ['admin@example.com'];
     return createClerkAuthMiddleware({
       getClerkSecretKey: () => overrides.secretKey ?? 'sk_test_mock',
       getClerkPublishableKey: () => 'pk_test_mock',
       getAllowlistEmails: () => allowlist.map((e) => e.toLowerCase()),
       isDatabaseMode: () => overrides.databaseMode ?? false,
       resolveAuthenticatedEmail: overrides.resolveAuthenticatedEmail
-        || (async () => overrides.email ?? 'allowed@example.com'),
+        || (async () => overrides.email ?? 'admin@example.com'),
     });
   }
 
@@ -116,7 +119,7 @@ describe('Clerk API access control', () => {
     const watchlistPath = await tempWatchlistPath();
     await startServer({
       watchlistPath,
-      apiAccessMiddleware: clerkMiddleware({ email: 'allowed@example.com' }),
+      apiAccessMiddleware: clerkMiddleware({ email: 'admin@example.com' }),
     });
 
     const response = await fetch(`${baseUrl}/api/watchlist`, {
@@ -174,6 +177,27 @@ describe('Clerk API access control', () => {
       body: JSON.stringify({ token: 'BTC' }),
     });
     assert.equal(response.status, 503);
+  });
+
+  it('POST /api/watchlist returns 503 when auth enforced but allowlist is empty', async () => {
+    const watchlistPath = await tempWatchlistPath();
+    await startServer({
+      watchlistPath,
+      apiAccessMiddleware: createClerkAuthMiddleware({
+        getClerkSecretKey: () => 'sk_test_mock',
+        getAllowlistEmails: () => [],
+        isDatabaseMode: () => false,
+      }),
+    });
+
+    const response = await fetch(`${baseUrl}/api/watchlist`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: 'BTC' }),
+    });
+    assert.equal(response.status, 503);
+    const body = await response.json();
+    assert.match(body.error, /CLERK_ALLOWLIST_EMAILS/);
   });
 
   it('GET /api/auth/config returns Clerk client config shape', async () => {
