@@ -17,6 +17,10 @@ const {
 const { createStrategyEventsStore } = require('./lib/strategyEvents');
 const { isDatabaseMode } = require('./lib/persistence');
 const { restorePublicUrlMiddleware } = require('./lib/vercelRequest');
+const { fetchRSI } = require('./lib/taapiClient');
+const {
+  ALLOWED_TIMEFRAMES, DEFAULT_EXCHANGE, DEFAULT_QUOTE, SUGGESTED_L1_TOKENS,
+} = require('./lib/constants');
 
 function createApp(options = {}) {
   const app = express();
@@ -253,6 +257,33 @@ function createApp(options = {}) {
     }
 
     return res.json(session);
+  });
+
+  app.get('/api/heatmap-data', async (req, res) => {
+    const secret = options.taapiSecret !== undefined ? options.taapiSecret : process.env.TAAPI_SECRET;
+    if (!secret) {
+      return res.status(503).json({ error: 'TAAPI_SECRET environment variable is not configured' });
+    }
+    const interval = ALLOWED_TIMEFRAMES.includes(req.query.timeframe) ? req.query.timeframe : '1h';
+    const tokens = SUGGESTED_L1_TOKENS.slice(0, 5);
+    const rsiFetcher = options.fetchRSI || fetchRSI;
+    const results = [];
+    for (const token of tokens) {
+      try {
+        const point = await rsiFetcher({
+          exchange: DEFAULT_EXCHANGE,
+          symbol: `${token}/${DEFAULT_QUOTE}`,
+          interval,
+          secret,
+        });
+        if (point && Number.isFinite(point.value)) {
+          results.push({ token, rsi: point.value });
+        }
+      } catch {
+        // Skip tokens TAAPI cannot serve (rate limits, unknown pairs).
+      }
+    }
+    return res.json(results);
   });
 
   app.use(express.static('public'));
