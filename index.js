@@ -17,6 +17,14 @@ const {
 const { createStrategyEventsStore } = require('./lib/strategyEvents');
 const { isDatabaseMode } = require('./lib/persistence');
 const { restorePublicUrlMiddleware } = require('./lib/vercelRequest');
+const { fetchRSI } = require('./lib/taapiClient');
+const {
+  ALLOWED_TIMEFRAMES, SUGGESTED_L1_TOKENS,
+} = require('./lib/constants');
+const {
+  defaultGuard: defaultHeatmapGuard,
+  buildHeatmapPayload,
+} = require('./lib/heatmapData');
 
 function createApp(options = {}) {
   const app = express();
@@ -253,6 +261,34 @@ function createApp(options = {}) {
     }
 
     return res.json(session);
+  });
+
+  const heatmapGuard = options.heatmapDataGuard || defaultHeatmapGuard;
+
+  app.get('/api/heatmap-data', async (req, res) => {
+    const secret = options.taapiSecret !== undefined ? options.taapiSecret : process.env.TAAPI_SECRET;
+    if (!secret) {
+      return res.status(503).json({ error: 'TAAPI_SECRET environment variable is not configured' });
+    }
+    const clientIp = heatmapGuard.getClientIp(req);
+    if (heatmapGuard.isRateLimited(clientIp)) {
+      return res.status(429).json({ error: 'Too many requests' });
+    }
+    const interval = ALLOWED_TIMEFRAMES.includes(req.query.timeframe) ? req.query.timeframe : '1h';
+    const cached = heatmapGuard.getCached(interval);
+    if (cached) {
+      return res.json(cached);
+    }
+    const tokens = SUGGESTED_L1_TOKENS.slice(0, 5);
+    const rsiFetcher = options.fetchRSI || fetchRSI;
+    const results = await buildHeatmapPayload({
+      tokens,
+      interval,
+      secret,
+      rsiFetcher,
+    });
+    heatmapGuard.setCached(interval, results);
+    return res.json(results);
   });
 
   app.use(express.static('public'));
